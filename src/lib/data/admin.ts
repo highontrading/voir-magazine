@@ -1,5 +1,5 @@
 import 'server-only';
-import { all, get, nowIso, type Param } from '../db';
+import { all, get, run, nowIso, type Param } from '../db';
 import type { Activity, ArticleStatus, Media, Message, Subscriber, Tag } from '../types';
 
 /* Extra read queries used only by the admin panel. */
@@ -203,3 +203,25 @@ export function authorArticleTotals(): Record<number, number> {
   for (const r of all<{ author_id: number; n: number }>('SELECT author_id, COUNT(*) AS n FROM article_authors GROUP BY author_id')) out[r.author_id] = r.n;
   return out;
 }
+
+/** Persist an explicit ordering (position = index) for sortable tables. */
+export function setPositions(table: 'sections' | 'authors' | 'podcasts' | 'newsletters' | 'plans', orderedIds: number[]) {
+  orderedIds.forEach((id, i) => run(`UPDATE ${table} SET position = ? WHERE id = ?`, i, id));
+}
+
+/** Move one row up/down within an ordered table; returns false if it can't move. */
+export function moveRow(table: 'sections' | 'authors' | 'podcasts' | 'newsletters' | 'plans', id: number, dir: -1 | 1): boolean {
+  const order = table === 'plans' ? 'position, id' : table === 'podcasts' ? 'position, title' : 'position, name';
+  const list = all<{ id: number }>(`SELECT id FROM ${table} ORDER BY ${order}`).map((r) => r.id);
+  const i = list.indexOf(id);
+  const j = i + dir;
+  if (i < 0 || j < 0 || j >= list.length) return false;
+  [list[i], list[j]] = [list[j]!, list[i]!];
+  setPositions(table, list);
+  return true;
+}
+
+export function nextPosition(table: 'sections' | 'authors' | 'podcasts' | 'newsletters' | 'plans'): number {
+  return (get<{ n: number | null }>(`SELECT MAX(position) AS n FROM ${table}`)?.n ?? -1) + 1;
+}
+
