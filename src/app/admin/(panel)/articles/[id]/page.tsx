@@ -1,5 +1,5 @@
 import { notFound } from 'next/navigation';
-import { requireUser, can } from '@/lib/auth';
+import { requireUser, can, currentUser } from '@/lib/auth';
 import { getArticleById } from '@/lib/data/articles';
 import { listAuthors, listSections } from '@/lib/data/taxonomy';
 import { listIssues } from '@/lib/data/content';
@@ -12,7 +12,9 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
   const { id } = await params;
   if (id === 'new') return { title: 'New story' };
   const a = getArticleById(Number(id));
-  return { title: a ? `Edit: ${a.title}` : 'Story not found' };
+  const user = await currentUser();
+  const mayView = !!a && !!user && (can(user, 'articles.all') || a.created_by === user.id);
+  return { title: mayView ? `Edit: ${a!.title}` : 'Edit story' };
 }
 
 export default async function EditArticlePage({ params }: { params: Promise<{ id: string }> }) {

@@ -43,7 +43,7 @@ export default async function ContributorPage({ params }: Props) {
           <Card key={a.id} a={toCard(a)} variant="medium" showByline={false} showTime />
         ))}
       </div>
-      <LoadMore query={{ author: author.slug }} start={12} total={total} />
+      <LoadMore query={{ author: author.slug }} start={12} total={total} card={{ showByline: false, showTime: true }} />
     </div>
   );
 }

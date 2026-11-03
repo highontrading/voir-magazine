@@ -26,7 +26,7 @@ export default async function SectionEdit({ params }: { params: Promise<{ id: st
               <a className="adm-btn" href={`/${s.slug}`} target="_blank" rel="noreferrer">
                 <Icon name="external" size={14} /> View
               </a>
-              <ActionButton action={deleteSectionAction} fields={{ id: s.id }} className="adm-btn" danger confirm={`Delete the “${s.name}” section?`}>
+              <ActionButton action={deleteSectionAction} fields={{ id: s.id }} className="adm-btn" danger confirm={`Delete the “${s.name}” section? Menu links to /${s.slug} and its homepage blocks are removed too.`}>
                 <Icon name="trash" size={14} /> Delete
               </ActionButton>
             </>
@@ -52,7 +52,7 @@ export default async function SectionEdit({ params }: { params: Promise<{ id: st
                 <input className="adm-input" type="number" name="position" defaultValue={s?.position ?? ''} placeholder="Auto" />
               </label>
             </div>
-            <Toggle name="in_nav" label="Show in navigation" hint="Adds this section to the header menu" defaultChecked={s ? !!s.in_nav : true} />
+            <Toggle name="in_nav" label="Show in navigation" hint="Lists this section in the slide-out menu and the footer’s Sections column. Header bar links are managed under Navigation." defaultChecked={s ? !!s.in_nav : true} />
             <hr className="adm-divider" />
             <CountedInput name="seo_title" label="SEO title" max={60} defaultValue={s?.seo_title} placeholder="Defaults to the section name" />
             <CountedInput name="seo_description" label="SEO description" max={160} textarea defaultValue={s?.seo_description} placeholder="Defaults to the description" />

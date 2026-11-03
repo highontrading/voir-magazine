@@ -1,7 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { requireUser, verifyPassword } from '@/lib/auth';
+import { renewSession, requireUser, verifyPassword } from '@/lib/auth';
 import { emailTaken, logActivity, saveUser } from '@/lib/data/site';
 import { userPasswordHash } from '@/lib/data/admin';
 import { EMAIL_RE, fail, ok, str, type ActionResult } from '@/lib/admin/form';
@@ -32,6 +32,8 @@ export async function changePasswordAction(_p: ActionResult | null, fd: FormData
   if (next !== confirm) return fail('The new passwords don’t match.', { confirm: 'Doesn’t match' });
   if (next === current) return fail('Choose a password different from the current one.', { next: 'Same as current' });
   saveUser({ name: me.name, email: me.email, role: me.role, active: true, avatar: me.avatar ?? undefined, password: next }, me.id);
+  // saveUser ended every session of this user (signing out other devices); keep this one signed in.
+  await renewSession('admin', me.id);
   logActivity(me.id, 'changed password', 'profile', me.id, me.name);
   return ok('Password changed.');
 }

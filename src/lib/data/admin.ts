@@ -131,18 +131,26 @@ export function mediaPage(opts: { q?: string; kind?: string; page?: number; perP
   return { items, total, page, pages: Math.max(1, Math.ceil(total / perPage)) };
 }
 
+/**
+ * How many records reference a media URL. Covers every field the admin can fill from the media library:
+ * article heroes and bodies, issue covers, author photos, video files/thumbnails, podcast covers, episode
+ * images/audio, section heroes, newsletter images, page bodies, user avatars and any settings value
+ * (logoImage, seo.ogImage …, stored as JSON).
+ */
 export function mediaUsage(url: string): number {
-  const t = `%${url}%`;
+  if (!url) return 0;
   return get<{ n: number }>(
-    `SELECT (SELECT COUNT(*) FROM articles WHERE hero_image = ? OR body LIKE ?)
-          + (SELECT COUNT(*) FROM authors WHERE photo = ?)
-          + (SELECT COUNT(*) FROM issues WHERE cover_image = ?)
-          + (SELECT COUNT(*) FROM videos WHERE thumbnail = ? OR video_url = ?) AS n`,
-    url,
-    t,
-    url,
-    url,
-    url,
+    `SELECT (SELECT COUNT(*) FROM articles WHERE hero_image = ?1 OR instr(body, ?1) > 0)
+          + (SELECT COUNT(*) FROM authors WHERE photo = ?1)
+          + (SELECT COUNT(*) FROM issues WHERE cover_image = ?1)
+          + (SELECT COUNT(*) FROM videos WHERE thumbnail = ?1 OR video_url = ?1)
+          + (SELECT COUNT(*) FROM podcasts WHERE cover_image = ?1)
+          + (SELECT COUNT(*) FROM episodes WHERE image = ?1 OR audio_url = ?1)
+          + (SELECT COUNT(*) FROM sections WHERE hero_image = ?1)
+          + (SELECT COUNT(*) FROM newsletters WHERE image = ?1)
+          + (SELECT COUNT(*) FROM pages WHERE instr(body, ?1) > 0)
+          + (SELECT COUNT(*) FROM users WHERE avatar = ?1)
+          + (SELECT COUNT(*) FROM settings WHERE instr(value, ?1) > 0) AS n`,
     url,
   )!.n;
 }

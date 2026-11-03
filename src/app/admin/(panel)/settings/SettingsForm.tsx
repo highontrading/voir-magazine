@@ -118,7 +118,7 @@ export function SettingsForm({ initial }: { initial: EditableSettings }) {
                 {field('Site name', s.siteName, (v) => set('siteName', v), { error: 'siteName' })}
                 {field('Tagline', s.tagline, (v) => set('tagline', v))}
               </div>
-              {field('Description', s.description, (v) => set('description', v), { textarea: true, hint: 'Used in the footer and as a fallback meta description.' })}
+              {field('Description', s.description, (v) => set('description', v), { textarea: true, hint: 'Fallback meta description and RSS feed description (the footer text is set under Footer).' })}
               <div className="adm-form-grid">
                 {field('Logo text', s.logoText, (v) => set('logoText', v), { hint: 'The wordmark set in the display typeface.' })}
                 <div className="adm-field">

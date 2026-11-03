@@ -1,9 +1,45 @@
 import 'server-only';
-import { all, get, run, nowIso } from '../db';
+import { all, get, run, nowIso, tx } from '../db';
+import { getSettings, saveSettings } from '../settings';
 import type { Author, Section, Tag } from '../types';
 import { uniqueSlug } from './articles';
 
 const PUB = `a.status IN ('published','scheduled') AND a.published_at IS NOT NULL AND a.published_at <= ?`;
+
+/* ---------------- links to sections & tags ---------------- */
+
+type RefKind = 'section' | 'tag';
+const basePath = (kind: RefKind, slug: string) => (kind === 'section' ? `/${slug}` : `/tag/${slug}`);
+
+/** The part of `url` after `base` when it points at `base` (or a sub-path / query / hash of it), else null. */
+function urlRest(url: string, base: string): string | null {
+  if (url === base) return '';
+  if (url.startsWith(base) && '/?#'.includes(url[base.length]!)) return url.slice(base.length);
+  return null;
+}
+
+/**
+ * Keep menus and homepage blocks pointing at a section or tag after its slug changes (`to` = new slug)
+ * or it is deleted (`to` = null). On rename, nav_items URLs and block refs are rewritten; on delete, nav
+ * items that link to it and homepage blocks built on it are removed.
+ */
+function retargetRefs(kind: RefKind, from: string, to: string | null) {
+  if (!from || from === to) return;
+  const base = basePath(kind, from);
+  for (const n of all<{ id: number; url: string }>('SELECT id, url FROM nav_items')) {
+    const rest = urlRest(n.url, base);
+    if (rest === null) continue;
+    if (to === null) run('DELETE FROM nav_items WHERE id = ?', n.id);
+    else run('UPDATE nav_items SET url = ? WHERE id = ?', basePath(kind, to) + rest, n.id);
+  }
+  const hp = getSettings().homepage;
+  if (!hp.blocks.some((b) => b.type === kind && b.ref === from)) return;
+  const blocks =
+    to === null
+      ? hp.blocks.filter((b) => !(b.type === kind && b.ref === from))
+      : hp.blocks.map((b) => (b.type === kind && b.ref === from ? { ...b, ref: to } : b));
+  saveSettings({ homepage: { ...hp, blocks } });
+}
 
 /* ---------------- sections ---------------- */
 
@@ -29,14 +65,22 @@ export function saveSection(input: SectionInput, id?: number): number {
   const slug = uniqueSlug('sections', input.slug || input.name, id);
   const vals = [input.name, slug, input.description, input.color, input.position, input.in_nav, input.hero_image, input.seo_title, input.seo_description] as const;
   if (id) {
-    run('UPDATE sections SET name=?, slug=?, description=?, color=?, position=?, in_nav=?, hero_image=?, seo_title=?, seo_description=? WHERE id=?', ...vals, id);
+    const old = getSectionById(id)?.slug;
+    tx(() => {
+      run('UPDATE sections SET name=?, slug=?, description=?, color=?, position=?, in_nav=?, hero_image=?, seo_title=?, seo_description=? WHERE id=?', ...vals, id);
+      if (old) retargetRefs('section', old, slug);
+    });
     return id;
   }
   return run('INSERT INTO sections (name, slug, description, color, position, in_nav, hero_image, seo_title, seo_description) VALUES (?,?,?,?,?,?,?,?,?)', ...vals).lastId;
 }
 
 export function deleteSection(id: number) {
-  run('DELETE FROM sections WHERE id = ?', id);
+  const old = getSectionById(id)?.slug;
+  tx(() => {
+    run('DELETE FROM sections WHERE id = ?', id);
+    if (old) retargetRefs('section', old, null);
+  });
 }
 
 /* ---------------- tags ---------------- */
@@ -60,22 +104,37 @@ export function getTag(slug: string): Tag | null {
   return get<Tag>('SELECT * FROM tags WHERE slug = ?', slug) ?? null;
 }
 
+const tagSlug = (id: number) => get<{ slug: string }>('SELECT slug FROM tags WHERE id = ?', id)?.slug;
+
 export function saveTag(input: { name: string; slug?: string; description?: string }, id?: number): number {
   const slug = uniqueSlug('tags', input.slug || input.name, id);
   if (id) {
-    run('UPDATE tags SET name=?, slug=?, description=? WHERE id=?', input.name, slug, input.description ?? '', id);
+    const old = tagSlug(id);
+    tx(() => {
+      run('UPDATE tags SET name=?, slug=?, description=? WHERE id=?', input.name, slug, input.description ?? '', id);
+      if (old) retargetRefs('tag', old, slug);
+    });
     return id;
   }
   return run('INSERT INTO tags (name, slug, description) VALUES (?,?,?)', input.name, slug, input.description ?? '').lastId;
 }
 
 export function deleteTag(id: number) {
-  run('DELETE FROM tags WHERE id = ?', id);
+  const old = tagSlug(id);
+  tx(() => {
+    run('DELETE FROM tags WHERE id = ?', id);
+    if (old) retargetRefs('tag', old, null);
+  });
 }
 
 export function mergeTags(fromId: number, intoId: number) {
-  run('INSERT OR IGNORE INTO article_tags (article_id, tag_id) SELECT article_id, ? FROM article_tags WHERE tag_id = ?', intoId, fromId);
-  run('DELETE FROM tags WHERE id = ?', fromId);
+  const from = tagSlug(fromId);
+  const into = tagSlug(intoId);
+  tx(() => {
+    run('INSERT OR IGNORE INTO article_tags (article_id, tag_id) SELECT article_id, ? FROM article_tags WHERE tag_id = ?', intoId, fromId);
+    run('DELETE FROM tags WHERE id = ?', fromId);
+    if (from) retargetRefs('tag', from, into ?? null);
+  });
 }
 
 /* ---------------- authors ---------------- */

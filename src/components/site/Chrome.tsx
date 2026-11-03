@@ -18,7 +18,7 @@ export async function Chrome({ children }: { children: React.ReactNode }) {
     : listPublished({ flag: 'top_story', limit: 8 }).map((a) => ({ text: a.title, url: `/story/${a.slug}` }));
   return (
     <div className="vt">
-      <a href="#main" className="sr-only">Skip to content</a>
+      <a href="#main" className="sr-only skip-link">Skip to content</a>
       {s.announcement.enabled && s.announcement.text ? (
         <Announcement text={s.announcement.text} link={s.announcement.link} linkLabel={s.announcement.linkLabel} />
       ) : null}

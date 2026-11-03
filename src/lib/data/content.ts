@@ -112,8 +112,9 @@ export function recordVideoView(id: number) {
 
 export function listPodcasts(activeOnly = true): Podcast[] {
   return all<Podcast>(
-    `SELECT p.*, (SELECT COUNT(*) FROM episodes e WHERE e.podcast_id = p.id AND e.status = 'published') AS episode_count
+    `SELECT p.*, (SELECT COUNT(*) FROM episodes e WHERE e.podcast_id = p.id AND e.status = 'published' AND e.published_at <= ?) AS episode_count
      FROM podcasts p ${activeOnly ? 'WHERE p.active = 1' : ''} ORDER BY p.position, p.title`,
+    nowIso(),
   );
 }
 
@@ -157,8 +158,16 @@ export function listEpisodes(podcastId?: number, publicOnly = true, limit = 100)
   return all<Episode>(`${EP_BASE} ${where.length ? 'WHERE ' + where.join(' AND ') : ''} ORDER BY e.published_at DESC LIMIT ?`, ...params, limit);
 }
 
-export function getEpisode(podcastSlug: string, slug: string): Episode | null {
-  return get<Episode>(`${EP_BASE} WHERE p.slug = ? AND e.slug = ?`, podcastSlug, slug) ?? null;
+/** Public lookup: only released episodes (published, publish date reached) of active shows. */
+export function getEpisode(podcastSlug: string, slug: string, publicOnly = true): Episode | null {
+  return (
+    get<Episode>(
+      `${EP_BASE} WHERE p.slug = ? AND e.slug = ? ${publicOnly ? "AND e.status = 'published' AND e.published_at <= ? AND p.active = 1" : ''}`,
+      podcastSlug,
+      slug,
+      ...(publicOnly ? [nowIso()] : []),
+    ) ?? null
+  );
 }
 
 export function getEpisodeById(id: number): Episode | null {

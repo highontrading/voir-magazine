@@ -5,7 +5,10 @@ import { listAuthors } from '@/lib/data/taxonomy';
 import { cleanHtml } from '@/lib/html';
 import { Avatar } from '@/components/site/Media';
 
-export const metadata: Metadata = { title: 'Masthead' };
+export function generateMetadata(): Metadata {
+  const page = getPage('masthead');
+  return { title: page?.title || 'Masthead', description: page?.seo_description || page?.intro || undefined };
+}
 
 export default function MastheadPage() {
   const page = getPage('masthead');
@@ -14,7 +17,7 @@ export default function MastheadPage() {
     <div className="page-enter">
       <header className="page-head">
         <div className="wrap">
-          <h1>Masthead</h1>
+          <h1>{page?.title || 'Masthead'}</h1>
           <p>{page?.intro ?? 'The people who make Voirtales.'}</p>
         </div>
       </header>

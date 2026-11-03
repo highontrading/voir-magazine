@@ -59,6 +59,15 @@ export function ArticleEditor({ initial, meta, sections, authors, issues, tagSug
   const set = useCallback(<K extends keyof ArticlePayload>(k: K, v: ArticlePayload[K]) => setA((p) => ({ ...p, [k]: v })), []);
 
   const isLive = savedStatus === 'published' || savedStatus === 'scheduled';
+  const wantsLive = a.status === 'published' || a.status === 'scheduled';
+  /** Editor picked Draft / In review / Archived in the Status dropdown for a story that is live. */
+  const leavingLive = isLive && !wantsLive;
+  // Previewing saves first; on a live story that would publish unreviewed edits, so require an explicit Update.
+  // A scheduled story whose saved date is still in the future is not public yet, so previewing it is safe.
+  const savedPublishedAt = (JSON.parse(saved) as ArticlePayload).published_at;
+  const publicNow =
+    savedStatus === 'published' || (savedStatus === 'scheduled' && (!savedPublishedAt || new Date(savedPublishedAt).getTime() <= Date.now()));
+  const previewBlocked = publicNow && dirty;
   const future = !!a.published_at && new Date(a.published_at).getTime() > Date.now() + 30_000;
 
   const save = useCallback(
@@ -111,10 +120,12 @@ export function ArticleEditor({ initial, meta, sections, authors, issues, tagSug
       window.open(`/story/${a.slug}?preview=1`, '_blank');
       return;
     }
-    // open synchronously (popup blockers), then point it at the freshly saved story
+    if (previewBlocked) return;
+    // open synchronously (popup blockers), then point it at the freshly saved story. The story is not live, so
+    // it is saved with its current (non-live) status — choosing Published in the dropdown never publishes on preview.
     const w = window.open('about:blank', '_blank');
     previewWin.current = w;
-    save(undefined, (slug) => {
+    save(wantsLive ? savedStatus : a.status, (slug) => {
       if (w) w.location.href = `/story/${slug}?preview=1`;
       previewWin.current = null;
     });
@@ -168,7 +179,9 @@ export function ArticleEditor({ initial, meta, sections, authors, issues, tagSug
               <span className="adm-spinner" /> Saving…
             </>
           ) : dirty ? (
-            <span className="adm-unsaved">● Unsaved changes</span>
+            <span className="adm-unsaved" title={previewBlocked ? 'Readers still see the saved version. Preview is off until you Update.' : undefined}>
+              ● Unsaved changes{previewBlocked ? ' — not live until you Update' : ''}
+            </span>
           ) : updatedAt ? (
             `Saved ${timeAgo(updatedAt).toLowerCase()}`
           ) : (
@@ -176,7 +189,13 @@ export function ArticleEditor({ initial, meta, sections, authors, issues, tagSug
           )}
         </span>
         <div className="adm-editor-bar-actions">
-          <button type="button" className="adm-btn adm-btn-ghost" onClick={preview} disabled={pending || (!a.id && !a.title)} title="Opens the story on the site in a new tab">
+          <button
+            type="button"
+            className="adm-btn adm-btn-ghost"
+            onClick={preview}
+            disabled={pending || (!a.id && !a.title) || previewBlocked}
+            title={previewBlocked ? 'This story is live: previewing would publish your unsaved edits. Click Update to publish them, then preview.' : isLive ? 'Opens the live story on the site in a new tab' : 'Saves without publishing and opens the story on the site in a new tab'}
+          >
             <Icon name="eye" size={14} /> Preview
           </button>
           {!locked && (
@@ -201,7 +220,19 @@ export function ArticleEditor({ initial, meta, sections, authors, issues, tagSug
                   Save
                 </button>
               )}
-              {canPublish && (
+              {canPublish && leavingLive && (
+                <button
+                  type="button"
+                  className="adm-btn adm-btn-primary"
+                  disabled={pending}
+                  onClick={async () =>
+                    (await confirm({ message: `Take this story off the site and mark it “${STATUS_LABEL[a.status]}”?`, confirmLabel: `Save as ${STATUS_LABEL[a.status]}`, danger: true })) && save(a.status)
+                  }
+                >
+                  Save as {STATUS_LABEL[a.status]}
+                </button>
+              )}
+              {canPublish && !leavingLive && (
                 <button type="button" className="adm-btn adm-btn-primary" disabled={pending} onClick={() => save(future ? 'scheduled' : 'published')}>
                   <Icon name={future ? 'calendar' : 'bolt'} size={14} /> {primaryLabel}
                 </button>

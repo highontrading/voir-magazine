@@ -16,7 +16,7 @@ export async function GET(req: Request) {
 <channel>
 <title>${esc(s.siteName)}${section ? ` — ${esc(section)}` : ''}</title>
 <link>${origin}</link>
-<description>${esc(s.seo.defaultDescription)}</description>
+<description>${esc(s.seo.defaultDescription || s.description)}</description>
 <language>en-us</language>
 <atom:link href="${origin}/rss.xml" rel="self" type="application/rss+xml"/>
 ${items

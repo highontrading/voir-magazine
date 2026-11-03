@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { currentReader, currentUser } from '@/lib/auth';
+import { can, currentReader, currentUser } from '@/lib/auth';
 import { getArticleBySlugAny, getPublishedBySlug, listPublished, mostPopular, relatedArticles } from '@/lib/data/articles';
 import { isSaved } from '@/lib/data/site';
 import { getSettings } from '@/lib/settings';
@@ -20,8 +20,13 @@ type Props = { params: Promise<{ slug: string }>; searchParams: Promise<{ previe
 async function load(slug: string, preview?: string): Promise<{ a: Article | null; isPreview: boolean }> {
   const pub = getPublishedBySlug(slug);
   if (pub) return { a: pub, isPreview: false };
-  if (preview && (await currentUser())) return { a: getArticleBySlugAny(slug), isPreview: true };
-  return { a: null, isPreview: false };
+  if (!preview) return { a: null, isPreview: false };
+  const user = await currentUser();
+  if (!user) return { a: null, isPreview: false };
+  const any = getArticleBySlugAny(slug);
+  // Writers may only preview their own stories; editors and admins can preview anything.
+  if (!any || (!can(user, 'articles.all') && any.created_by !== user.id)) return { a: null, isPreview: false };
+  return { a: any, isPreview: true };
 }
 
 export async function generateMetadata({ params, searchParams }: Props): Promise<Metadata> {
@@ -177,7 +182,9 @@ export default async function StoryPage({ params, searchParams }: Props) {
               <p>{s.subscribe.text}</p>
               <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
                 <Link href="/subscribe" className="btn btn--accent">{s.subscribe.cta}</Link>
-                <Link href={`/account/sign-in?next=/story/${a.slug}`} className="btn btn--ghost">Sign in</Link>
+                {s.features.readerAccounts ? (
+                  <Link href={`/account/sign-in?next=/story/${a.slug}`} className="btn btn--ghost">Sign in</Link>
+                ) : null}
               </div>
             </div>
           </div>

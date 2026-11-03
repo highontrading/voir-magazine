@@ -83,6 +83,7 @@ src/
 - Articles support three hero layouts (standard, full-bleed overlay, split), a drop cap, pull quotes, figures with captions, a reading-progress bar, share buttons, saving to a reader account, tags, author bios, related and most-popular stories, JSON-LD, Open Graph metadata, scheduled publishing, admin previews of drafts and an optional subscriber paywall teaser.
 - Motion: scroll-reveal animations, a sticky compact header that slides in on scroll, a trending ticker, slow-zoom ("Ken Burns") hero images, card hover effects, carousels, a back-to-top button, a full-screen search overlay with live suggestions, and a slide-in menu drawer. All of it respects `prefers-reduced-motion`.
 - Analytics: per-article view counts and daily views, used by "Most Popular" and the admin dashboard chart.
+- Security: an allowlist HTML sanitizer (sanitize-html) runs when content is saved and again when it is rendered. Passwords are hashed with scrypt, sessions are httpOnly, and changing a password ends the account's other sessions. Login is throttled, permissions are checked on the server for every admin action, and redirects are checked to stay on this site.
 - SEO: metadata per page, canonical links, `sitemap.xml`, `robots.txt` and an RSS feed (`/rss.xml?section=hollywood` for a single section).
 
 All people, organisations and events in the demo content are fictional. Placeholder photography loads from picsum.photos and can be replaced from the admin.

@@ -15,7 +15,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 export default async function EpisodePage({ params }: Props) {
   const { slug, episode } = await params;
   const e = getEpisode(slug, episode);
-  if (!e || e.status !== 'published') notFound();
+  if (!e) notFound();
   const others = listEpisodes(e.podcast_id).filter((x) => x.id !== e.id).slice(0, 5);
   return (
     <div className="wrap wrap--narrow page-enter" style={{ paddingTop: 56 }}>

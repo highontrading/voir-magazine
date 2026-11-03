@@ -10,6 +10,8 @@ import { SocialLinks } from './Social';
 type Item = { label: string; url: string; new_tab?: number };
 type Sug = { slug: string; title: string; hero_image: string; section_name: string | null; rubric: string };
 
+const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
 export interface HeaderProps {
   logoText: string;
   logoImage: string;
@@ -44,6 +46,10 @@ export function Header(p: HeaderProps) {
   const mastRef = useRef<HTMLElement>(null);
   const barRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const drawerRef = useRef<HTMLElement>(null);
+  const drawerCloseRef = useRef<HTMLButtonElement>(null);
+  const searchRef = useRef<HTMLDivElement>(null);
+  const openerRef = useRef<HTMLElement | null>(null);
   const isArticle = pathname.startsWith('/story/');
 
   useEffect(() => {
@@ -51,13 +57,53 @@ export function Header(p: HeaderProps) {
     setSearch(false);
   }, [pathname]);
 
+  // Focus management: remember the opener, move focus into the open dialog, restore it on close.
+  useEffect(() => {
+    if (drawer || search) {
+      if (!openerRef.current) {
+        const a = document.activeElement;
+        openerRef.current = a instanceof HTMLElement && a !== document.body ? a : null;
+      }
+      const t = setTimeout(() => {
+        if (search) inputRef.current?.focus();
+        else drawerCloseRef.current?.focus();
+      }, 60);
+      return () => clearTimeout(t);
+    }
+    const opener = openerRef.current;
+    openerRef.current = null;
+    const a = document.activeElement;
+    const lost = !a || a === document.body || drawerRef.current?.contains(a) || searchRef.current?.contains(a);
+    if (opener && opener.isConnected && lost) opener.focus();
+  }, [drawer, search]);
+
   useEffect(() => {
     document.body.style.overflow = drawer || search ? 'hidden' : '';
-    if (search) setTimeout(() => inputRef.current?.focus(), 60);
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         setDrawer(false);
         setSearch(false);
+      }
+      if (e.key === 'Tab' && (drawer || search)) {
+        const box = search ? searchRef.current : drawerRef.current;
+        if (box) {
+          const els = Array.from(box.querySelectorAll<HTMLElement>(FOCUSABLE)).filter((el) => el.offsetParent !== null);
+          const first = els[0];
+          const last = els[els.length - 1];
+          const cur = document.activeElement;
+          if (!first || !last) {
+            e.preventDefault();
+          } else if (!box.contains(cur)) {
+            e.preventDefault();
+            first.focus();
+          } else if (e.shiftKey && cur === first) {
+            e.preventDefault();
+            last.focus();
+          } else if (!e.shiftKey && cur === last) {
+            e.preventDefault();
+            first.focus();
+          }
+        }
       }
       if (e.key === '/' && !(e.target instanceof HTMLInputElement) && !(e.target instanceof HTMLTextAreaElement)) {
         e.preventDefault();
@@ -65,7 +111,10 @@ export function Header(p: HeaderProps) {
       }
     };
     window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      document.body.style.overflow = '';
+    };
   }, [drawer, search]);
 
   useEffect(() => {
@@ -110,6 +159,10 @@ export function Header(p: HeaderProps) {
 
   const active = (url: string) => url !== '/' && (pathname === url || pathname.startsWith(url + '/'));
   const accountHref = p.readerName ? '/account' : '/account/sign-in';
+  // Close a dialog whenever one of its links is followed, even if the pathname does not change.
+  const closeOnLink = (close: () => void) => (e: React.MouseEvent) => {
+    if (e.target instanceof Element && e.target.closest('a[href]')) close();
+  };
 
   return (
     <>
@@ -142,7 +195,12 @@ export function Header(p: HeaderProps) {
           <ul>
             {p.nav.map((n) => (
               <li key={n.url + n.label}>
-                <Link href={n.url} className={cn(active(n.url) && 'is-active')} target={n.new_tab ? '_blank' : undefined}>
+                <Link
+                  href={n.url}
+                  className={cn(active(n.url) && 'is-active')}
+                  target={n.new_tab ? '_blank' : undefined}
+                  rel={n.new_tab ? 'noopener noreferrer' : undefined}
+                >
                   {n.label}
                 </Link>
               </li>
@@ -151,7 +209,7 @@ export function Header(p: HeaderProps) {
         </nav>
       </header>
 
-      <div className={cn('stickybar', stuck && 'is-visible')} aria-hidden={!stuck}>
+      <div className={cn('stickybar', stuck && 'is-visible')} aria-hidden={!stuck} inert={!stuck}>
         <div className="stickybar__inner">
           <button className="icon-btn" onClick={() => setDrawer(true)} aria-label="Open menu" tabIndex={stuck ? 0 : -1}>
             <MenuIcon />
@@ -161,7 +219,13 @@ export function Header(p: HeaderProps) {
             <ul>
               {p.nav.slice(0, 8).map((n) => (
                 <li key={n.url + n.label}>
-                  <Link href={n.url} className={cn(active(n.url) && 'is-active')} tabIndex={stuck ? 0 : -1}>
+                  <Link
+                    href={n.url}
+                    className={cn(active(n.url) && 'is-active')}
+                    tabIndex={stuck ? 0 : -1}
+                    target={n.new_tab ? '_blank' : undefined}
+                    rel={n.new_tab ? 'noopener noreferrer' : undefined}
+                  >
                     {n.label}
                   </Link>
                 </li>
@@ -179,10 +243,19 @@ export function Header(p: HeaderProps) {
       </div>
 
       <div className={cn('drawer-backdrop', drawer && 'is-open')} onClick={() => setDrawer(false)} />
-      <aside className={cn('drawer', drawer && 'is-open')} aria-hidden={!drawer} aria-label="Site menu">
+      <aside
+        ref={drawerRef}
+        className={cn('drawer', drawer && 'is-open')}
+        role="dialog"
+        aria-modal="true"
+        aria-hidden={!drawer}
+        inert={!drawer}
+        aria-label="Site menu"
+        onClick={closeOnLink(() => setDrawer(false))}
+      >
         <div className="drawer__head">
           <Logo text={p.logoText} image={p.logoImage} />
-          <button className="icon-btn" onClick={() => setDrawer(false)} aria-label="Close menu">
+          <button ref={drawerCloseRef} className="icon-btn" onClick={() => setDrawer(false)} aria-label="Close menu">
             <CloseIcon />
           </button>
         </div>
@@ -191,7 +264,10 @@ export function Header(p: HeaderProps) {
             onSubmit={(e) => {
               e.preventDefault();
               const v = new FormData(e.currentTarget).get('q');
-              if (v) router.push(`/search?q=${encodeURIComponent(String(v))}`);
+              const term = String(v ?? '').trim();
+              if (!term) return;
+              setDrawer(false);
+              router.push(`/search?q=${encodeURIComponent(term)}`);
             }}
           >
             <input name="q" placeholder="Search Voirtales" aria-label="Search" />
@@ -218,7 +294,7 @@ export function Header(p: HeaderProps) {
         </nav>
         <div className="drawer__links">
           {p.extra.map((n) => (
-            <Link key={n.url + n.label} href={n.url}>
+            <Link key={n.url + n.label} href={n.url} target={n.new_tab ? '_blank' : undefined} rel={n.new_tab ? 'noopener noreferrer' : undefined}>
               {n.label}
             </Link>
           ))}
@@ -240,7 +316,16 @@ export function Header(p: HeaderProps) {
         </div>
       </aside>
 
-      <div className={cn('search-overlay', search && 'is-open')} role="dialog" aria-modal="true" aria-hidden={!search} aria-label="Search">
+      <div
+        ref={searchRef}
+        className={cn('search-overlay', search && 'is-open')}
+        role="dialog"
+        aria-modal="true"
+        aria-hidden={!search}
+        inert={!search}
+        aria-label="Search"
+        onClick={closeOnLink(() => setSearch(false))}
+      >
         <button className="icon-btn search-overlay__close" onClick={() => setSearch(false)} aria-label="Close search">
           <CloseIcon style={{ width: 30, height: 30 }} />
         </button>

@@ -35,9 +35,28 @@ export function readingTime(html: string): number {
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
+/**
+ * Parse a stored timestamp. SQLite's datetime('now') writes UTC as "YYYY-MM-DD HH:MM:SS" with no
+ * zone marker, which JS would read as local time; treat such values (and bare dates) as UTC.
+ */
+export function parseDate(value: string | null | undefined): Date {
+  if (!value) return new Date(NaN);
+  const s = value.trim();
+  const m = /^(\d{4}-\d{2}-\d{2})(?:[ T](\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?))?$/.exec(s);
+  if (m) return new Date(m[2] ? `${m[1]}T${m[2]}Z` : `${m[1]}T00:00:00Z`);
+  return new Date(s);
+}
+
+/** Parse a query-string value into a safe integer clamped to [min, max], or `fallback` when invalid. */
+export function clampInt(value: unknown, fallback: number, min: number, max: number): number {
+  const n = typeof value === 'number' ? value : Number(value);
+  if (value === null || value === undefined || value === '' || !Number.isFinite(n)) return fallback;
+  return Math.min(max, Math.max(min, Math.floor(n)));
+}
+
 export function formatDate(iso: string | null | undefined, style: 'long' | 'short' | 'month' = 'long'): string {
   if (!iso) return '';
-  const d = new Date(iso);
+  const d = parseDate(iso);
   if (Number.isNaN(d.getTime())) return '';
   const m = MONTHS[d.getUTCMonth()];
   if (style === 'month') return `${m} ${d.getUTCFullYear()}`;
@@ -47,7 +66,9 @@ export function formatDate(iso: string | null | undefined, style: 'long' | 'shor
 
 export function timeAgo(iso: string | null | undefined): string {
   if (!iso) return '';
-  const diff = Date.now() - new Date(iso).getTime();
+  const t = parseDate(iso).getTime();
+  if (Number.isNaN(t)) return '';
+  const diff = Date.now() - t;
   const min = Math.round(diff / 60000);
   if (min < 1) return 'Just now';
   if (min < 60) return `${min} minute${min === 1 ? '' : 's'} ago`;
@@ -61,7 +82,8 @@ export function timeAgo(iso: string | null | undefined): string {
 export function formatDateTimeLocal(iso: string | null | undefined): string {
   // For <input type="datetime-local"> (local time, minute precision)
   if (!iso) return '';
-  const d = new Date(iso);
+  const d = parseDate(iso);
+  if (Number.isNaN(d.getTime())) return '';
   const pad = (n: number) => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }

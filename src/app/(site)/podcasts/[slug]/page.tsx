@@ -8,7 +8,7 @@ type Props = { params: Promise<{ slug: string }> };
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const p = getPodcast((await params).slug);
-  return p ? { title: p.title, description: p.description } : { title: 'Podcast not found' };
+  return p && p.active ? { title: p.title, description: p.description } : { title: 'Podcast not found' };
 }
 
 export default async function ShowPage({ params }: Props) {

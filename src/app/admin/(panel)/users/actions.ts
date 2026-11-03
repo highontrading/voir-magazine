@@ -1,7 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { requireUser } from '@/lib/auth';
+import { renewSession, requireUser } from '@/lib/auth';
 import { deleteUser, emailTaken, getUser, logActivity, saveUser } from '@/lib/data/site';
 import { adminCount } from '@/lib/data/admin';
 import { bool, dbError, EMAIL_RE, fail, int, ok, str, type ActionResult } from '@/lib/admin/form';
@@ -33,6 +33,8 @@ export async function saveUserAction(_p: ActionResult | null, fd: FormData): Pro
   if (Object.keys(errors).length) return fail(Object.values(errors)[0]!, errors);
   try {
     const uid = saveUser({ name, email, role, active, password: password || undefined, avatar: existing ? (str(fd, 'avatar', 1000) || undefined) : str(fd, 'avatar', 1000) || undefined }, id);
+    // A password reset ends all of that user's sessions; if admins reset their own, keep them signed in here.
+    if (password && uid === me.id) await renewSession('admin', me.id);
     logActivity(me.id, id ? 'updated' : 'created', 'user', uid, `${name} (${role})`);
     revalidatePath('/admin', 'layout');
     return ok(id ? 'User saved.' : `Invited ${name} as ${role}.`, { redirect: '/admin/users' });

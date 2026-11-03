@@ -9,7 +9,7 @@ export async function generateMetadata(): Promise<Metadata> {
   return {
     metadataBase: new URL(process.env.SITE_URL || 'http://localhost:3000'),
     title: { default: s.seo.defaultTitle, template: `%s | ${s.siteName}` },
-    description: s.seo.defaultDescription,
+    description: s.seo.defaultDescription || s.description || undefined,
     applicationName: s.siteName,
     openGraph: { siteName: s.siteName, type: 'website', images: s.seo.ogImage ? [s.seo.ogImage] : undefined },
     twitter: { card: 'summary_large_image' },

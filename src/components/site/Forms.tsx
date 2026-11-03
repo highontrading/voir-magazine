@@ -34,7 +34,7 @@ export function NewsletterForm({ source = 'website', newsletterIds = [], cta = '
               <input key={id} type="hidden" name="nl" value={id} />
             ))}
             <label className="sr-only" htmlFor={`nl-${source}`}>Email address</label>
-            <input id={`nl-${source}`} className="input" type="email" name="email" placeholder="Your email address" required />
+            <input id={`nl-${source}`} className="input" type="email" name="email" placeholder="Your email address" required defaultValue={state.values?.email} />
             <button className={cn('btn', dark ? 'btn--accent' : '')} disabled={pending}>
               {pending ? 'Signing up…' : cta}
             </button>
@@ -79,7 +79,7 @@ export function NewsletterPicker({ items }: { items: { id: number; name: string;
             {sel.length} newsletter{sel.length === 1 ? '' : 's'} selected
           </strong>
           <input type="hidden" name="source" value="newsletters-page" />
-          <input className="input" style={{ flex: 1, minWidth: 220 }} type="email" name="email" placeholder="Your email address" required aria-label="Email address" />
+          <input className="input" style={{ flex: 1, minWidth: 220 }} type="email" name="email" placeholder="Your email address" required aria-label="Email address" defaultValue={state.values?.email} />
           <button className="btn btn--accent" disabled={pending || !sel.length}>
             {pending ? 'Subscribing…' : 'Subscribe'}
           </button>
@@ -101,16 +101,18 @@ export function ContactForm({ topics }: { topics: [string, string][] }) {
       <div className="grid grid--2" style={{ gap: '0 20px' }}>
         <div className="field">
           <label htmlFor="c-name">Name</label>
-          <input id="c-name" className="input" name="name" required />
+          <input id="c-name" className="input" name="name" required defaultValue={state.values?.name} />
         </div>
         <div className="field">
           <label htmlFor="c-email">Email</label>
-          <input id="c-email" className="input" type="email" name="email" required />
+          <input id="c-email" className="input" type="email" name="email" required defaultValue={state.values?.email} />
         </div>
       </div>
       <div className="field">
         <label htmlFor="c-topic">Topic</label>
-        <select id="c-topic" className="input" name="topic">
+        {/* React applies a select's defaultValue only on mount, and resets the form after the action,
+            so key on the returned topic to remount with it and keep the user's choice after an error. */}
+        <select key={state.values?.topic ?? ''} id="c-topic" className="input" name="topic" defaultValue={state.values?.topic}>
           {topics.map(([v, l]) => (
             <option key={v} value={v}>{l}</option>
           ))}
@@ -118,11 +120,11 @@ export function ContactForm({ topics }: { topics: [string, string][] }) {
       </div>
       <div className="field">
         <label htmlFor="c-subject">Subject</label>
-        <input id="c-subject" className="input" name="subject" />
+        <input id="c-subject" className="input" name="subject" defaultValue={state.values?.subject} />
       </div>
       <div className="field">
         <label htmlFor="c-body">Message</label>
-        <textarea id="c-body" className="input" name="body" required minLength={10} />
+        <textarea id="c-body" className="input" name="body" required minLength={10} defaultValue={state.values?.body} />
       </div>
       <input type="text" name="website" tabIndex={-1} autoComplete="off" style={{ position: 'absolute', left: -9999 }} aria-hidden />
       <button className="btn btn--accent" disabled={pending}>{pending ? 'Sending…' : 'Send message'}</button>
@@ -184,31 +186,31 @@ export function SubscribeFlow({ plans, defaultEmail, defaultName }: { plans: Pla
           <div className="grid grid--2" style={{ gap: '0 20px' }}>
             <div className="field">
               <label htmlFor="s-name">Full name</label>
-              <input id="s-name" className="input" name="name" defaultValue={defaultName} required />
+              <input id="s-name" className="input" name="name" defaultValue={state.values?.name ?? defaultName} required />
             </div>
             <div className="field">
               <label htmlFor="s-email">Email</label>
-              <input id="s-email" className="input" type="email" name="email" defaultValue={defaultEmail} required />
+              <input id="s-email" className="input" type="email" name="email" defaultValue={state.values?.email ?? defaultEmail} required />
             </div>
           </div>
           {chosen.name.toLowerCase().includes('digital') && !chosen.name.toLowerCase().includes('print') ? null : (
             <>
               <div className="field">
                 <label htmlFor="s-address">Delivery address</label>
-                <input id="s-address" className="input" name="address" />
+                <input id="s-address" className="input" name="address" defaultValue={state.values?.address} />
               </div>
               <div className="grid grid--3" style={{ gap: '0 20px' }}>
                 <div className="field">
                   <label htmlFor="s-city">City</label>
-                  <input id="s-city" className="input" name="city" />
+                  <input id="s-city" className="input" name="city" defaultValue={state.values?.city} />
                 </div>
                 <div className="field">
                   <label htmlFor="s-postal">Postal code</label>
-                  <input id="s-postal" className="input" name="postal_code" />
+                  <input id="s-postal" className="input" name="postal_code" defaultValue={state.values?.postal_code} />
                 </div>
                 <div className="field">
                   <label htmlFor="s-country">Country</label>
-                  <input id="s-country" className="input" name="country" defaultValue="United States" />
+                  <input id="s-country" className="input" name="country" defaultValue={state.values?.country ?? 'United States'} />
                 </div>
               </div>
             </>
@@ -233,7 +235,7 @@ export function SignInForm({ next }: { next?: string }) {
       <input type="hidden" name="next" value={next ?? ''} />
       <div className="field">
         <label htmlFor="si-email">Email</label>
-        <input id="si-email" className="input" type="email" name="email" required autoComplete="email" />
+        <input id="si-email" className="input" type="email" name="email" required autoComplete="email" defaultValue={state.values?.email} />
       </div>
       <div className="field">
         <label htmlFor="si-pw">Password</label>
@@ -251,18 +253,18 @@ export function RegisterForm() {
       <Msg s={state} />
       <div className="field">
         <label htmlFor="r-name">Name</label>
-        <input id="r-name" className="input" name="name" required autoComplete="name" />
+        <input id="r-name" className="input" name="name" required autoComplete="name" defaultValue={state.values?.name} />
       </div>
       <div className="field">
         <label htmlFor="r-email">Email</label>
-        <input id="r-email" className="input" type="email" name="email" required autoComplete="email" />
+        <input id="r-email" className="input" type="email" name="email" required autoComplete="email" defaultValue={state.values?.email} />
       </div>
       <div className="field">
         <label htmlFor="r-pw">Password</label>
         <input id="r-pw" className="input" type="password" name="password" required minLength={8} autoComplete="new-password" />
       </div>
       <label className="check" style={{ marginBottom: 20 }}>
-        <input type="checkbox" name="daily" defaultChecked /> Send me the Voirtales Daily newsletter
+        <input type="checkbox" name="daily" defaultChecked={state.values ? state.values.daily === 'on' : true} /> Send me the Voirtales Daily newsletter
       </label>
       <button className="btn btn--accent btn--block" disabled={pending}>{pending ? 'Creating account…' : 'Create account'}</button>
     </form>
@@ -271,13 +273,15 @@ export function RegisterForm() {
 
 export function NewsletterPrefsForm({ items, selected }: { items: { id: number; name: string; frequency: string; description: string }[]; selected: number[] }) {
   const [state, action, pending] = useActionState(newsletterPrefsAction, {});
+  // The form resets after each save; reset to what was just submitted, not the first render's props.
+  const current = state.selected ?? selected;
   return (
     <form action={action}>
       <Msg s={state} />
       <div className="rule-list" style={{ marginBottom: 24 }}>
         {items.map((n) => (
           <label key={n.id} className="check" style={{ fontSize: 16 }}>
-            <input type="checkbox" name="nl" value={n.id} defaultChecked={selected.includes(n.id)} />
+            <input type="checkbox" name="nl" value={n.id} defaultChecked={current.includes(n.id)} />
             <span>
               <strong style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 600 }}>{n.name}</strong>
               <span className="muted" style={{ display: 'block', fontSize: 14 }}>
@@ -299,11 +303,15 @@ export function ProfileForm({ name, email }: { name: string; email: string }) {
       <Msg s={state} />
       <div className="field">
         <label htmlFor="p-name">Name</label>
-        <input id="p-name" className="input" name="name" defaultValue={name} required />
+        <input id="p-name" className="input" name="name" defaultValue={state.values?.name ?? name} required />
       </div>
       <div className="field">
         <label>Email</label>
         <input className="input" value={email} disabled readOnly />
+      </div>
+      <div className="field">
+        <label htmlFor="p-current">Current password (required to change your password)</label>
+        <input id="p-current" className="input" type="password" name="current" autoComplete="current-password" />
       </div>
       <div className="field">
         <label htmlFor="p-pw">New password (optional)</label>

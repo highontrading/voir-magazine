@@ -75,7 +75,7 @@ export default async function SectionsPage() {
                         <Link className="adm-icon-btn" href={`/admin/sections/${s.id}`} title="Edit">
                           <Icon name="edit" size={15} />
                         </Link>
-                        <ActionButton action={deleteSectionAction} fields={{ id: s.id }} className="adm-icon-btn" danger title="Delete" confirm={`Delete the “${s.name}” section? Its ${totals[s.id] ?? 0} stories will become unsectioned.`}>
+                        <ActionButton action={deleteSectionAction} fields={{ id: s.id }} className="adm-icon-btn" danger title="Delete" confirm={`Delete the “${s.name}” section? Its ${totals[s.id] ?? 0} stories will become unsectioned, and menu links and homepage blocks for it are removed.`}>
                           <Icon name="trash" size={15} />
                         </ActionButton>
                       </div>

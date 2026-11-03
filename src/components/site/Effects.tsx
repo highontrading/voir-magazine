@@ -67,7 +67,11 @@ export function Effects({ reveal, backToTop }: { reveal: boolean; backToTop: boo
 
   if (!backToTop) return null;
   return (
-    <button className={cn('to-top', top && 'is-visible')} onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} aria-label="Back to top">
+    <button
+      className={cn('to-top', top && 'is-visible')}
+      aria-hidden={!top}
+      inert={!top}
+      onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} aria-label="Back to top">
       <ArrowUp />
     </button>
   );

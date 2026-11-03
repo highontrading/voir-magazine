@@ -13,7 +13,7 @@ type Props = { params: Promise<{ slug: string }> };
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const i = getIssue((await params).slug);
-  return i ? { title: `${i.title} — ${formatDate(i.issue_date, 'month')}`, description: i.description } : { title: 'Issue not found' };
+  return i && i.published ? { title: `${i.title} — ${formatDate(i.issue_date, 'month')}`, description: i.description } : { title: 'Issue not found' };
 }
 
 export default async function IssuePage({ params }: Props) {

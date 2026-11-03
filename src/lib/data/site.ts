@@ -1,6 +1,6 @@
 import 'server-only';
 import { all, get, run, nowIso } from '../db';
-import { hashPassword } from '../auth';
+import { hashPassword, revokeSessions } from '../auth';
 import type { Activity, Media, Message, MenuName, NavItem, Newsletter, Plan, Reader, Role, Subscriber, Subscription, User } from '../types';
 import { uniqueSlug } from './articles';
 
@@ -183,9 +183,13 @@ export function deleteReader(id: number) {
   run('DELETE FROM readers WHERE id = ?', id);
 }
 
-export function updateReaderProfile(id: number, name: string, password?: string) {
+/** Changing the password ends the reader's other sessions (deleted synchronously); await the result to be sure the current session has been renewed. */
+export async function updateReaderProfile(id: number, name: string, password?: string): Promise<void> {
   run('UPDATE readers SET name = ? WHERE id = ?', name, id);
-  if (password) run('UPDATE readers SET password_hash = ? WHERE id = ?', hashPassword(password), id);
+  if (password) {
+    run('UPDATE readers SET password_hash = ? WHERE id = ?', hashPassword(password), id);
+    await revokeSessions('reader', id);
+  }
 }
 
 export function toggleSaved(readerId: number, articleId: number): boolean {
@@ -278,7 +282,8 @@ export function saveUser(input: { name: string; email: string; role: Role; activ
   if (id) {
     run('UPDATE users SET name=?, email=?, role=?, active=?, avatar=? WHERE id=?', input.name, input.email, input.role, input.active ? 1 : 0, input.avatar ?? null, id);
     if (input.password) run('UPDATE users SET password_hash = ? WHERE id = ?', hashPassword(input.password), id);
-    if (!input.active) run("DELETE FROM sessions WHERE kind = 'admin' AND subject_id = ?", id);
+    // A new password (or deactivation) ends every session; self-service callers renew their own via renewSession().
+    if (input.password || !input.active) run("DELETE FROM sessions WHERE kind = 'admin' AND subject_id = ?", id);
     return id;
   }
   return run(

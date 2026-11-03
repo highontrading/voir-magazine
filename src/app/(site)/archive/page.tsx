@@ -4,14 +4,14 @@ import { countPublished, listPublished } from '@/lib/data/articles';
 import { listSections } from '@/lib/data/taxonomy';
 import { formatDate } from '@/lib/utils';
 import { Pager } from '@/components/site/Pager';
-import { cn } from '@/lib/utils';
+import { clampInt, cn } from '@/lib/utils';
 
 export const metadata: Metadata = { title: 'Archive', description: 'Every story, by month.' };
 const PER = 40;
 
 export default async function ArchivePage({ searchParams }: { searchParams: Promise<{ page?: string; section?: string }> }) {
   const sp = await searchParams;
-  const page = Math.max(1, Number(sp.page) || 1);
+  const page = clampInt(sp.page, 1, 1, 10_000);
   const section = sp.section || undefined;
   const total = countPublished({ section });
   const items = listPublished({ section, limit: PER, offset: (page - 1) * PER });

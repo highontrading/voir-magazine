@@ -4,7 +4,10 @@ import { getSettings } from '@/lib/settings';
 import { cleanHtml } from '@/lib/html';
 import { ContactForm } from '@/components/site/Forms';
 
-export const metadata: Metadata = { title: 'Contact Us' };
+export function generateMetadata(): Metadata {
+  const page = getPage('contact');
+  return { title: page?.title || 'Contact Us', description: page?.seo_description || page?.intro || undefined };
+}
 
 export default function ContactPage() {
   const page = getPage('contact');

@@ -1,11 +1,11 @@
 import Link from 'next/link';
-import { getArticleById, getArticlesByIds, listPublished, mostPopular } from '@/lib/data/articles';
+import { getArticlesByIds, listPublished, mostPopular } from '@/lib/data/articles';
 import { currentIssue, latestVideos, listPodcasts } from '@/lib/data/content';
 import { getSection, getTag } from '@/lib/data/taxonomy';
 import type { Article, HomeBlock, SiteSettings } from '@/lib/types';
 import { formatDate } from '@/lib/utils';
 import { BlockHead } from './BlockHead';
-import { Card, toCard } from './Card';
+import { Card, toCard, type CardData } from './Card';
 import { Carousel } from './Carousel';
 import { Cover } from './Cover';
 import { NewsletterForm } from './Forms';
@@ -55,7 +55,7 @@ function HomeBlockView({ b, s, used }: { b: HomeBlock; s: SiteSettings; used: Us
     case 'magazine':
       return <MagazineBlock b={b} s={s} />;
     case 'newsletter':
-      return <NewsletterBand s={s} />;
+      return <NewsletterBand s={s} title={b.title} />;
     case 'podcasts':
       return <PodcastBlock b={b} />;
     case 'editors-picks':
@@ -160,15 +160,30 @@ function SectionBlock({ b, used }: { b: HomeBlock; used: Used }) {
   if (!items.length) items = listPublished({ sectionId: section.id, limit: want });
   if (!items.length) return null;
   used.add(items);
-  const title = b.title || section.name;
-  const href = `/${section.slug}`;
-  const cards = items.map(toCard);
+  return <LayoutBlock layout={layout} title={b.title || section.name} href={`/${section.slug}`} more={`More ${section.name}`} cards={items.map(toCard)} />;
+}
 
+/** Renders a list of cards in one of the homepage builder layouts (grid, feature, mosaic, list carousel). */
+function LayoutBlock({
+  layout,
+  title,
+  href,
+  more,
+  cards,
+  gridDek = true,
+}: {
+  layout: string;
+  title: string;
+  href: string;
+  more?: string;
+  cards: CardData[];
+  gridDek?: boolean;
+}) {
   if (layout === 'feature') {
     const [first, ...rest] = cards;
     return (
       <section className="block wrap">
-        <BlockHead title={title} href={href} more={`More ${section.name}`} />
+        <BlockHead title={title} href={href} more={more} />
         <div className="feature-split">
           <Card a={first!} variant="overlay" ratio="landscape" />
           <div className="feature-split__list">
@@ -184,7 +199,7 @@ function SectionBlock({ b, used }: { b: HomeBlock; used: Used }) {
     const [c, l1, l2, r1, r2] = cards;
     return (
       <section className="block wrap">
-        <BlockHead title={title} href={href} more={`More ${section.name}`} />
+        <BlockHead title={title} href={href} more={more} />
         <div className="mosaic">
           <div className="mosaic__col">{[l1, l2].map((a) => a && <Card key={a.id} a={a} variant="small" />)}</div>
           <div className="mosaic__col mosaic__center">
@@ -198,7 +213,7 @@ function SectionBlock({ b, used }: { b: HomeBlock; used: Used }) {
   if (layout === 'list') {
     return (
       <section className="block wrap">
-        <BlockHead title={title} href={href} more={`More ${section.name}`} />
+        <BlockHead title={title} href={href} more={more} />
         <Carousel label={title}>
           {cards.map((a) => (
             <Card key={a.id} a={a} variant="medium" ratio="tall" reveal={false} />
@@ -209,10 +224,10 @@ function SectionBlock({ b, used }: { b: HomeBlock; used: Used }) {
   }
   return (
     <section className="block wrap">
-      <BlockHead title={title} href={href} more={`More ${section.name}`} />
+      <BlockHead title={title} href={href} more={more} />
       <div className="grid grid--4">
         {cards.map((a) => (
-          <Card key={a.id} a={a} variant="medium" showDek />
+          <Card key={a.id} a={a} variant="medium" showDek={gridDek} />
         ))}
       </div>
     </section>
@@ -222,18 +237,11 @@ function SectionBlock({ b, used }: { b: HomeBlock; used: Used }) {
 function TagBlock({ b, used }: { b: HomeBlock; used: Used }) {
   const tag = b.ref ? getTag(b.ref) : null;
   if (!tag) return null;
-  const items = used.add(listPublished({ tag: tag.slug, limit: b.limit ?? 4, exclude: used.list }));
+  const layout = b.layout || 'grid';
+  const want = b.limit ?? (layout === 'mosaic' ? 5 : layout === 'list' ? 8 : 4);
+  const items = used.add(listPublished({ tag: tag.slug, limit: want, exclude: used.list }));
   if (!items.length) return null;
-  return (
-    <section className="block wrap">
-      <BlockHead title={b.title || tag.name} href={`/tag/${tag.slug}`} />
-      <div className="grid grid--4">
-        {items.map((a) => (
-          <Card key={a.id} a={toCard(a)} variant="medium" />
-        ))}
-      </div>
-    </section>
-  );
+  return <LayoutBlock layout={layout} title={b.title || tag.name} href={`/tag/${tag.slug}`} cards={items.map(toCard)} gridDek={false} />;
 }
 
 function PopularBlock({ b, used }: { b: HomeBlock; used: Used }) {
@@ -308,7 +316,8 @@ function VideoBlock({ b, s }: { b: HomeBlock; s: SiteSettings }) {
 function MagazineBlock({ b, s }: { b: HomeBlock; s: SiteSettings }) {
   const issue = currentIssue();
   if (!issue) return null;
-  const cover = issue.cover_story_id ? getArticleById(issue.cover_story_id) : null;
+  // Public-only lookup, so the button never points at a story readers can't open.
+  const cover = issue.cover_story_id ? getArticlesByIds([issue.cover_story_id])[0] : null;
   return (
     <section className="band-soft block" style={{ marginBottom: 56 }}>
       <div className="wrap issue-promo">
@@ -322,7 +331,7 @@ function MagazineBlock({ b, s }: { b: HomeBlock; s: SiteSettings }) {
           <h2>{issue.title}</h2>
           <p>{issue.description}</p>
           <div className="issue-promo__actions">
-            {cover && cover.status !== 'draft' ? (
+            {cover ? (
               <Link href={`/story/${cover.slug}`} className="btn">
                 Read the cover story
               </Link>
@@ -341,12 +350,12 @@ function MagazineBlock({ b, s }: { b: HomeBlock; s: SiteSettings }) {
   );
 }
 
-export function NewsletterBand({ s }: { s: SiteSettings }) {
+export function NewsletterBand({ s, title }: { s: SiteSettings; title?: string }) {
   return (
     <section className="nl-band" style={{ marginBottom: 56 }}>
       <div className="wrap nl-band__inner">
         <div data-reveal="left">
-          <h2>{s.newsletterPromo.headline}</h2>
+          <h2>{title || s.newsletterPromo.headline}</h2>
           <p>{s.newsletterPromo.text}</p>
         </div>
         <div data-reveal="right">

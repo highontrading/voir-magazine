@@ -6,6 +6,7 @@ import { deleteTag, mergeTags, saveTag } from '@/lib/data/taxonomy';
 import { logActivity } from '@/lib/data/site';
 import { get } from '@/lib/db';
 import { dbError, fail, int, ok, str, type ActionResult } from '@/lib/admin/form';
+import { slugify } from '@/lib/utils';
 
 const tagName = (id: number) => get<{ name: string }>('SELECT name FROM tags WHERE id = ?', id)?.name;
 
@@ -14,9 +15,13 @@ export async function saveTagAction(_p: ActionResult | null, fd: FormData): Prom
   const id = int(fd, 'id') || undefined;
   const name = str(fd, 'name', 80);
   if (!name) return fail('Tag name is required.', { name: 'Required' });
-  if (!id && get('SELECT 1 FROM tags WHERE lower(name) = lower(?)', name)) return fail(`A tag called “${name}” already exists.`);
+  if (get('SELECT 1 FROM tags WHERE lower(name) = lower(?) AND id != ?', name, id ?? 0))
+    return fail(`A tag called “${name}” already exists — merge into it instead.`, { name: 'Already exists' });
+  const slug = slugify(str(fd, 'slug', 90));
+  if (slug && get('SELECT 1 FROM tags WHERE slug = ? AND id != ?', slug, id ?? 0))
+    return fail(`Another tag already uses the slug “${slug}”.`, { slug: 'Already in use' });
   try {
-    const tid = saveTag({ name, slug: str(fd, 'slug', 90), description: str(fd, 'description', 500) }, id);
+    const tid = saveTag({ name, slug, description: str(fd, 'description', 500) }, id);
     logActivity(user.id, id ? 'renamed' : 'created', 'tag', tid, name);
     revalidatePath('/', 'layout');
     return ok(id ? 'Tag updated.' : `Tag “${name}” created.`);

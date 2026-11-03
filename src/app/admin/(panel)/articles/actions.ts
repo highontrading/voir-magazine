@@ -9,6 +9,7 @@ import { logActivity } from '@/lib/data/site';
 import { dbError, fail, ids, ok, str, type ActionResult } from '@/lib/admin/form';
 import { ARTICLE_STATUSES, ARTICLE_TYPES, HERO_LAYOUTS, type ArticlePayload } from '@/lib/admin/article';
 import { slugify } from '@/lib/utils';
+import { cleanHtml } from '@/lib/html';
 
 const LIVE: ArticleStatus[] = ['published', 'scheduled', 'archived'];
 
@@ -58,7 +59,7 @@ export async function saveArticleAction(p: ArticlePayload): Promise<ActionResult
         slug: slugify(p.slug || title),
         dek: (p.dek ?? '').trim(),
         rubric: (p.rubric ?? '').trim(),
-        body: p.body ?? '',
+        body: cleanHtml(typeof p.body === 'string' ? p.body : ''),
         section_id: p.section_id || null,
         issue_id: p.issue_id || null,
         type: ARTICLE_TYPES.includes(p.type) ? p.type : 'story',

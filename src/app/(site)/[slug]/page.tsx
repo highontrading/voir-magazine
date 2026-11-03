@@ -1,3 +1,4 @@
+import type { CSSProperties } from 'react';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
@@ -24,7 +25,17 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 export default async function SlugPage({ params }: Props) {
   const { slug } = await params;
   const section = getSection(slug);
-  if (section) return <SectionView id={section.id} slug={section.slug} name={section.name} description={section.description} />;
+  if (section)
+    return (
+      <SectionView
+        id={section.id}
+        slug={section.slug}
+        name={section.name}
+        description={section.description}
+        heroImage={section.hero_image}
+        color={section.color}
+      />
+    );
   const page = getPage(slug);
   if (!page) notFound();
   return (
@@ -43,16 +54,40 @@ export default async function SlugPage({ params }: Props) {
   );
 }
 
-function SectionView({ id, slug, name, description }: { id: number; slug: string; name: string; description: string }) {
+/** Only accept plain hex colours so a stored value can never break out of the style attribute. */
+const HEX = /^#(?:[0-9a-f]{3}|[0-9a-f]{4}|[0-9a-f]{6}|[0-9a-f]{8})$/i;
+
+function SectionView({
+  id,
+  slug,
+  name,
+  description,
+  heroImage,
+  color,
+}: {
+  id: number;
+  slug: string;
+  name: string;
+  description: string;
+  heroImage?: string | null;
+  color?: string | null;
+}) {
+  const accent = color && HEX.test(color.trim()) ? color.trim() : null;
   const total = countPublished({ sectionId: id });
   const items = listPublished({ sectionId: id, limit: 15 });
   const tags = sectionTags(id);
   const videos = listVideos({ section: slug, limit: 4 });
   const [lead, s1, s2, ...rest] = items;
   return (
-    <div className="page-enter">
-      <header className="page-head">
+    <div className="page-enter" style={accent ? ({ '--accent': accent } as CSSProperties) : undefined}>
+      {heroImage ? (
+        <figure className="section-hero media" style={{ margin: 0, height: 'clamp(220px, 32vw, 460px)' }}>
+          <img src={heroImage} alt="" loading="eager" decoding="async" fetchPriority="high" />
+        </figure>
+      ) : null}
+      <header className="page-head" style={accent ? { borderBottom: '3px solid var(--accent)' } : undefined}>
         <div className="wrap">
+          {accent ? <span className="kicker-rule" /> : null}
           <h1>{name}</h1>
           {description ? <p>{description}</p> : null}
           {tags.length ? (

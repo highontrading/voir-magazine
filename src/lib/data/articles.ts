@@ -1,7 +1,7 @@
 import 'server-only';
-import { all, get, run, tx, nowIso, type Param } from '../db';
+import { all, get, run, tx, nowIso, db, type Param } from '../db';
 import type { Article, ArticleRow, ArticleStatus, Author, Tag } from '../types';
-import { readingTime, slugify } from '../utils';
+import { clampInt, readingTime, slugify } from '../utils';
 
 const BASE = `
   SELECT a.*, s.name AS section_name, s.slug AS section_slug
@@ -91,7 +91,9 @@ function buildWhere(q: ArticleQuery): { where: string; params: Param[] } {
 export function listPublished(q: ArticleQuery = {}): Article[] {
   const { where, params } = buildWhere(q);
   const order = q.order === 'popular' ? 'a.views DESC, a.published_at DESC' : 'a.published_at DESC';
-  const rows = all<Joined>(`${BASE} WHERE ${where} ORDER BY ${order} LIMIT ? OFFSET ?`, ...params, q.limit ?? 12, q.offset ?? 0);
+  const limit = clampInt(q.limit, 12, 0, 5000); // sitemap.ts asks for up to 5000
+  const offset = clampInt(q.offset, 0, 0, 1_000_000);
+  const rows = all<Joined>(`${BASE} WHERE ${where} ORDER BY ${order} LIMIT ? OFFSET ?`, ...params, limit, offset);
   return hydrate(rows);
 }
 
@@ -159,31 +161,71 @@ export function relatedArticles(article: Article, limit = 4): Article[] {
   return hydrate(rows);
 }
 
+/** Visible text of an HTML body (tags removed, common entities decoded) for matching searches. */
+function bodyText(html: unknown): string {
+  return String(html ?? '')
+    .replace(/<(script|style)[\s\S]*?<\/\1>/gi, ' ')
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;|&rsquo;|&lsquo;/g, "'")
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&amp;/g, '&')
+    .replace(/\s+/g, ' ');
+}
+
+// Registers voir_body_text(html) on the current connection so search matches visible text, not markup.
+const withBodyText = new WeakSet<object>();
+function ensureBodyTextFn() {
+  const conn = db();
+  if (withBodyText.has(conn)) return;
+  conn.function('voir_body_text', { deterministic: true }, (html) => bodyText(html));
+  withBodyText.add(conn);
+}
+
+/** Escape LIKE wildcards; use with `ESCAPE '\\'`. */
+function likeTerm(q: string): string {
+  return `%${q.replace(/[\\%_]/g, '\\$&')}%`;
+}
+
 export function searchArticles(q: string, limit = 20, offset = 0): { items: Article[]; total: number } {
-  const term = `%${q.trim().replace(/[%_]/g, '')}%`;
-  const where = `${PUBLIC} AND (a.title LIKE ? OR a.dek LIKE ? OR a.body LIKE ? OR a.rubric LIKE ?
-    OR a.id IN (SELECT at.article_id FROM article_tags at JOIN tags t ON t.id = at.tag_id WHERE t.name LIKE ?)
-    OR a.id IN (SELECT aa.article_id FROM article_authors aa JOIN authors au ON au.id = aa.author_id WHERE au.name LIKE ?))`;
+  const query = q.trim();
+  if (!query) return { items: [], total: 0 };
+  ensureBodyTextFn();
+  const term = likeTerm(query);
+  const L = `LIKE ? ESCAPE '\\'`;
+  const where = `${PUBLIC} AND (a.title ${L} OR a.dek ${L} OR voir_body_text(a.body) ${L} OR a.rubric ${L}
+    OR a.id IN (SELECT at.article_id FROM article_tags at JOIN tags t ON t.id = at.tag_id WHERE t.name ${L})
+    OR a.id IN (SELECT aa.article_id FROM article_authors aa JOIN authors au ON au.id = aa.author_id WHERE au.name ${L}))`;
   const params: Param[] = [nowIso(), term, term, term, term, term, term];
   const total = get<{ n: number }>(`SELECT COUNT(*) AS n FROM articles a LEFT JOIN sections s ON s.id = a.section_id WHERE ${where}`, ...params)!.n;
   const rows = all<Joined>(
-    `${BASE} WHERE ${where} ORDER BY (CASE WHEN a.title LIKE ? THEN 0 ELSE 1 END), a.published_at DESC LIMIT ? OFFSET ?`,
+    `${BASE} WHERE ${where} ORDER BY (CASE WHEN a.title ${L} THEN 0 ELSE 1 END), a.published_at DESC LIMIT ? OFFSET ?`,
     ...params,
     term,
-    limit,
-    offset,
+    clampInt(limit, 20, 0, 100),
+    clampInt(offset, 0, 0, 1_000_000),
   );
   return { items: hydrate(rows), total };
 }
 
-export function recordView(id: number) {
+/** Count a read of a live (published, visible) article. Returns false when the article is not public. */
+export function recordView(id: number): boolean {
   const day = new Date().toISOString().slice(0, 10);
-  run('UPDATE articles SET views = views + 1 WHERE id = ?', id);
+  const { changes } = run(`UPDATE articles SET views = views + 1 WHERE id = ? AND id IN (SELECT a.id FROM articles a WHERE ${PUBLIC})`, id, nowIso());
+  if (!changes) return false;
   run(
     'INSERT INTO article_views (article_id, day, count) VALUES (?, ?, 1) ON CONFLICT(article_id, day) DO UPDATE SET count = count + 1',
     id,
     day,
   );
+  return true;
+}
+
+/** Flip scheduled stories whose go-live time has passed to "published" so admin filters and pills match the site. */
+export function promoteDueScheduled() {
+  run("UPDATE articles SET status = 'published' WHERE status = 'scheduled' AND published_at IS NOT NULL AND published_at <= ?", nowIso());
 }
 
 /* ------------------------------ admin ------------------------------ */
@@ -200,6 +242,7 @@ export interface AdminArticleQuery {
 }
 
 export function adminListArticles(q: AdminArticleQuery) {
+  promoteDueScheduled();
   const parts: string[] = ['1=1'];
   const params: Param[] = [];
   if (q.q) {
@@ -224,8 +267,8 @@ export function adminListArticles(q: AdminArticleQuery) {
     params.push(q.createdBy);
   }
   const where = parts.join(' AND ');
-  const perPage = q.perPage ?? 20;
-  const page = Math.max(1, q.page ?? 1);
+  const perPage = clampInt(q.perPage, 20, 1, 200);
+  const page = clampInt(q.page, 1, 1, 100_000);
   const order =
     q.sort === 'published'
       ? 'a.published_at DESC'
@@ -240,6 +283,7 @@ export function adminListArticles(q: AdminArticleQuery) {
 }
 
 export function statusCounts(createdBy?: number): Record<ArticleStatus | 'all', number> {
+  promoteDueScheduled();
   const rows = createdBy
     ? all<{ status: ArticleStatus; n: number }>('SELECT status, COUNT(*) AS n FROM articles WHERE created_by = ? GROUP BY status', createdBy)
     : all<{ status: ArticleStatus; n: number }>('SELECT status, COUNT(*) AS n FROM articles GROUP BY status');
@@ -287,14 +331,32 @@ export function uniqueSlug(table: 'articles' | 'videos' | 'pages' | 'issues' | '
   return slug;
 }
 
+/** Slug base for a tag; names with no Latin letters or digits (e.g. "東京") get a stable hashed slug. */
+function tagSlugBase(name: string): string {
+  const s = slugify(name);
+  if (s) return s;
+  let h = 0x811c9dc5;
+  for (const ch of name.normalize('NFC')) {
+    h ^= ch.codePointAt(0)!;
+    h = Math.imul(h, 0x01000193) >>> 0;
+  }
+  return `tag-${h.toString(36)}`;
+}
+
 export function ensureTags(names: string[]): number[] {
+  // Repair tags stored with an empty slug by older versions (their /tag/ URL was unreachable).
+  for (const t of all<{ id: number; name: string }>("SELECT id, name FROM tags WHERE slug = ''")) {
+    run('UPDATE tags SET slug = ? WHERE id = ?', uniqueSlug('tags', tagSlugBase(t.name), t.id), t.id);
+  }
   const ids: number[] = [];
   for (const raw of names) {
-    const name = raw.trim();
+    const name = raw.trim().replace(/\s+/g, ' ');
     if (!name) continue;
-    const slug = slugify(name);
-    const existing = get<{ id: number }>('SELECT id FROM tags WHERE slug = ?', slug);
-    ids.push(existing ? existing.id : run('INSERT INTO tags (name, slug) VALUES (?, ?)', name, slug).lastId);
+    // Match an existing tag by name (case-insensitive); never by slug, so distinct names stay distinct.
+    const existing =
+      get<{ id: number }>('SELECT id FROM tags WHERE name = ?', name) ??
+      get<{ id: number }>('SELECT id FROM tags WHERE lower(name) = lower(?) ORDER BY id LIMIT 1', name);
+    ids.push(existing ? existing.id : run('INSERT INTO tags (name, slug) VALUES (?, ?)', name, uniqueSlug('tags', tagSlugBase(name))).lastId);
   }
   return [...new Set(ids)];
 }
@@ -396,6 +458,7 @@ export function duplicateArticle(id: number, userId?: number): number | null {
   return saveArticle(
     {
       ...a,
+      views: 0,
       title: `${a.title} (Copy)`,
       slug: `${a.slug}-copy`,
       status: 'draft',

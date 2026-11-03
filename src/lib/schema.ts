@@ -1,4 +1,40 @@
 // SQLite schema for Voirtales. Executed idempotently on startup.
+
+// Databases created before the ISO defaults above keep the old datetime('now') column default
+// (CREATE TABLE IF NOT EXISTS never alters an existing table), which writes "YYYY-MM-DD HH:MM:SS"
+// and sorts before same-day ISO "YYYY-MM-DDT...Z" values. Normalise existing rows on startup and
+// rewrite any new default-format value right after insert, so every stored timestamp is ISO UTC.
+const DEFAULTED_TIMESTAMPS: [table: string, column: string][] = [
+  ['users', 'created_at'],
+  ['sessions', 'created_at'],
+  ['sections', 'created_at'],
+  ['authors', 'created_at'],
+  ['issues', 'created_at'],
+  ['articles', 'created_at'],
+  ['articles', 'updated_at'],
+  ['videos', 'created_at'],
+  ['podcasts', 'created_at'],
+  ['episodes', 'created_at'],
+  ['pages', 'created_at'],
+  ['pages', 'updated_at'],
+  ['newsletter_subscribers', 'created_at'],
+  ['subscriptions', 'created_at'],
+  ['readers', 'created_at'],
+  ['saved_articles', 'created_at'],
+  ['messages', 'created_at'],
+  ['media', 'created_at'],
+  ['activity_log', 'created_at'],
+];
+const SQLITE_DT = `'[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9] [0-9][0-9]:[0-9][0-9]:[0-9][0-9]'`;
+const TIMESTAMP_FIXUPS = DEFAULTED_TIMESTAMPS.map(
+  ([t, c]) => `
+UPDATE ${t} SET ${c} = strftime('%Y-%m-%dT%H:%M:%fZ', ${c}) WHERE ${c} GLOB ${SQLITE_DT};
+CREATE TRIGGER IF NOT EXISTS ${t}_${c}_iso AFTER INSERT ON ${t} WHEN NEW.${c} GLOB ${SQLITE_DT}
+BEGIN
+  UPDATE ${t} SET ${c} = strftime('%Y-%m-%dT%H:%M:%fZ', NEW.${c}) WHERE rowid = NEW.rowid;
+END;`,
+).join('\n');
+
 export const SCHEMA = /* sql */ `
 PRAGMA foreign_keys = ON;
 
@@ -16,7 +52,7 @@ CREATE TABLE IF NOT EXISTS users (
   avatar TEXT,
   active INTEGER NOT NULL DEFAULT 1,
   last_login TEXT,
-  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
 );
 
 CREATE TABLE IF NOT EXISTS sessions (
@@ -24,7 +60,7 @@ CREATE TABLE IF NOT EXISTS sessions (
   kind TEXT NOT NULL DEFAULT 'admin' CHECK (kind IN ('admin','reader')),
   subject_id INTEGER NOT NULL,
   expires_at TEXT NOT NULL,
-  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
 );
 
 CREATE TABLE IF NOT EXISTS sections (
@@ -38,7 +74,7 @@ CREATE TABLE IF NOT EXISTS sections (
   hero_image TEXT NOT NULL DEFAULT '',
   seo_title TEXT NOT NULL DEFAULT '',
   seo_description TEXT NOT NULL DEFAULT '',
-  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
 );
 
 CREATE TABLE IF NOT EXISTS authors (
@@ -54,7 +90,7 @@ CREATE TABLE IF NOT EXISTS authors (
   website TEXT NOT NULL DEFAULT '',
   on_masthead INTEGER NOT NULL DEFAULT 1,
   position INTEGER NOT NULL DEFAULT 0,
-  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
 );
 
 CREATE TABLE IF NOT EXISTS tags (
@@ -74,7 +110,7 @@ CREATE TABLE IF NOT EXISTS issues (
   description TEXT NOT NULL DEFAULT '',
   cover_story_id INTEGER,
   published INTEGER NOT NULL DEFAULT 1,
-  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
 );
 
 CREATE TABLE IF NOT EXISTS articles (
@@ -102,8 +138,8 @@ CREATE TABLE IF NOT EXISTS articles (
   seo_title TEXT NOT NULL DEFAULT '',
   seo_description TEXT NOT NULL DEFAULT '',
   created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
-  created_at TEXT NOT NULL DEFAULT (datetime('now')),
-  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+  updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
 );
 CREATE INDEX IF NOT EXISTS idx_articles_status_pub ON articles(status, published_at);
 CREATE INDEX IF NOT EXISTS idx_articles_section ON articles(section_id);
@@ -142,7 +178,7 @@ CREATE TABLE IF NOT EXISTS videos (
   featured INTEGER NOT NULL DEFAULT 0,
   views INTEGER NOT NULL DEFAULT 0,
   published_at TEXT,
-  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
 );
 
 CREATE TABLE IF NOT EXISTS podcasts (
@@ -156,7 +192,7 @@ CREATE TABLE IF NOT EXISTS podcasts (
   spotify_url TEXT NOT NULL DEFAULT '',
   position INTEGER NOT NULL DEFAULT 0,
   active INTEGER NOT NULL DEFAULT 1,
-  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
 );
 
 CREATE TABLE IF NOT EXISTS episodes (
@@ -170,7 +206,7 @@ CREATE TABLE IF NOT EXISTS episodes (
   image TEXT NOT NULL DEFAULT '',
   status TEXT NOT NULL DEFAULT 'published' CHECK (status IN ('draft','published')),
   published_at TEXT,
-  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
   UNIQUE (podcast_id, slug)
 );
 
@@ -182,8 +218,8 @@ CREATE TABLE IF NOT EXISTS pages (
   body TEXT NOT NULL DEFAULT '',
   status TEXT NOT NULL DEFAULT 'published' CHECK (status IN ('draft','published')),
   seo_description TEXT NOT NULL DEFAULT '',
-  updated_at TEXT NOT NULL DEFAULT (datetime('now')),
-  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
 );
 
 CREATE TABLE IF NOT EXISTS nav_items (
@@ -211,7 +247,7 @@ CREATE TABLE IF NOT EXISTS newsletter_subscribers (
   email TEXT NOT NULL COLLATE NOCASE,
   newsletter_id INTEGER NOT NULL REFERENCES newsletters(id) ON DELETE CASCADE,
   source TEXT NOT NULL DEFAULT '',
-  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
   UNIQUE (email, newsletter_id)
 );
 
@@ -240,7 +276,7 @@ CREATE TABLE IF NOT EXISTS subscriptions (
   postal_code TEXT NOT NULL DEFAULT '',
   status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','active','cancelled')),
   notes TEXT NOT NULL DEFAULT '',
-  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
 );
 
 CREATE TABLE IF NOT EXISTS readers (
@@ -249,13 +285,13 @@ CREATE TABLE IF NOT EXISTS readers (
   email TEXT NOT NULL UNIQUE COLLATE NOCASE,
   password_hash TEXT NOT NULL,
   active INTEGER NOT NULL DEFAULT 1,
-  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
 );
 
 CREATE TABLE IF NOT EXISTS saved_articles (
   reader_id INTEGER NOT NULL REFERENCES readers(id) ON DELETE CASCADE,
   article_id INTEGER NOT NULL REFERENCES articles(id) ON DELETE CASCADE,
-  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
   PRIMARY KEY (reader_id, article_id)
 );
 
@@ -267,7 +303,7 @@ CREATE TABLE IF NOT EXISTS messages (
   topic TEXT NOT NULL DEFAULT 'general',
   body TEXT NOT NULL,
   read INTEGER NOT NULL DEFAULT 0,
-  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
 );
 
 CREATE TABLE IF NOT EXISTS media (
@@ -280,7 +316,7 @@ CREATE TABLE IF NOT EXISTS media (
   alt TEXT NOT NULL DEFAULT '',
   credit TEXT NOT NULL DEFAULT '',
   uploaded_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
-  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
 );
 
 CREATE TABLE IF NOT EXISTS activity_log (
@@ -290,6 +326,6 @@ CREATE TABLE IF NOT EXISTS activity_log (
   entity TEXT NOT NULL,
   entity_id INTEGER,
   label TEXT NOT NULL DEFAULT '',
-  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
 );
-`;
+${TIMESTAMP_FIXUPS}`;
