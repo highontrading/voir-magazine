@@ -20,7 +20,7 @@ export default async function UserEdit({ params }: { params: Promise<{ id: strin
   const me = await requireUser('users.manage');
   const { id } = await params;
   if (Number(id) === me.id) redirect('/admin/profile');
-  const u = id === 'new' ? null : getUser(Number(id));
+  const u = id === 'new' ? null : await getUser(Number(id));
   if (id !== 'new' && !u) notFound();
   return (
     <>

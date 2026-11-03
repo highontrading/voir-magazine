@@ -1,7 +1,7 @@
 // Populates a fresh database with a complete demo magazine.
-// NOTE: works on the raw DatabaseSync handle – it must not import ../db (circular).
+// NOTE: only type-imports ../db (no runtime import, so no circular dependency).
 import crypto from 'node:crypto';
-import type { DatabaseSync } from 'node:sqlite';
+import type { Param, Stmt } from '../db';
 import { ARTICLES } from './articles';
 import { ISSUES, PODCASTS, VIDEOS } from './media';
 import { PAGES } from './pages';
@@ -128,10 +128,33 @@ const NAV: Record<string, [string, string][]> = {
   ],
 };
 
-export function seedDatabase(db: DatabaseSync) {
-  const q = (sql: string) => db.prepare(sql);
-  db.exec('BEGIN');
-  try {
+// Tables whose rows get an explicit id so related rows can reference them inside one batch.
+const ID_TABLES = new Set([
+  'users', 'sections', 'authors', 'issues', 'tags', 'articles', 'videos', 'podcasts', 'episodes', 'pages',
+  'nav_items', 'newsletters', 'newsletter_subscribers', 'plans', 'readers', 'subscriptions', 'messages', 'activity_log',
+]);
+
+/**
+ * The complete demo magazine as a list of SQL statements. Ids are assigned here (not by the
+ * database) so the whole seed runs as one atomic batch — locally or against a remote libSQL server.
+ */
+export function seedStatements(): Stmt[] {
+  const stmts: Stmt[] = [];
+  const counters: Record<string, number> = {};
+  const q = (sql: string) => ({
+    run: (...args: Param[]) => {
+      const m = sql.match(/^\s*INSERT (?:OR \w+ )?INTO (\w+) \(/);
+      if (m && ID_TABLES.has(m[1]!)) {
+        const table = m[1]!;
+        const id = (counters[table] = (counters[table] ?? 0) + 1);
+        stmts.push({ sql: sql.replace(`INTO ${table} (`, `INTO ${table} (id, `).replace(/VALUES\s*\(/, 'VALUES (?, '), args: [id, ...args] });
+        return { lastInsertRowid: id };
+      }
+      stmts.push({ sql, args });
+      return { lastInsertRowid: 0 };
+    },
+  });
+  {
     // users
     const insUser = q('INSERT INTO users (name, email, role, password_hash) VALUES (?,?,?,?)');
     insUser.run('Eleanor Vance', 'admin@voirtales.com', 'admin', hash('admin123'));
@@ -349,9 +372,6 @@ export function seedDatabase(db: DatabaseSync) {
     const insLog = q('INSERT INTO activity_log (user_id, action, entity, entity_id, label, created_at) VALUES (?,?,?,?,?,?)');
     insLog.run(1, 'installed', 'site', null, 'Voirtales was set up with demo content', new Date().toISOString());
 
-    db.exec('COMMIT');
-  } catch (e) {
-    db.exec('ROLLBACK');
-    throw e;
   }
+  return stmts;
 }

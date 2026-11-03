@@ -1,10 +1,10 @@
 import 'server-only';
-import { all, get, run, nowIso, type Param } from '../db';
+import { all, batch, get, nowIso, type Param } from '../db';
 import type { Activity, ArticleStatus, Media, Message, Subscriber, Tag } from '../types';
 
 /* Extra read queries used only by the admin panel. */
 
-export function activityPage(page = 1, perPage = 30, opts: { entity?: string; userId?: number } = {}) {
+export async function activityPage(page = 1, perPage = 30, opts: { entity?: string; userId?: number } = {}) {
   const where: string[] = ['1=1'];
   const params: Param[] = [];
   if (opts.entity) {
@@ -16,25 +16,28 @@ export function activityPage(page = 1, perPage = 30, opts: { entity?: string; us
     params.push(opts.userId);
   }
   const w = where.join(' AND ');
-  const total = get<{ n: number }>(`SELECT COUNT(*) AS n FROM activity_log l WHERE ${w}`, ...params)!.n;
-  const items = all<Activity>(
-    `SELECT l.*, u.name AS user_name FROM activity_log l LEFT JOIN users u ON u.id = l.user_id WHERE ${w} ORDER BY l.id DESC LIMIT ? OFFSET ?`,
-    ...params,
-    perPage,
-    (page - 1) * perPage,
-  );
+  const [countRow, items] = await Promise.all([
+    get<{ n: number }>(`SELECT COUNT(*) AS n FROM activity_log l WHERE ${w}`, ...params),
+    all<Activity>(
+      `SELECT l.*, u.name AS user_name FROM activity_log l LEFT JOIN users u ON u.id = l.user_id WHERE ${w} ORDER BY l.id DESC LIMIT ? OFFSET ?`,
+      ...params,
+      perPage,
+      (page - 1) * perPage,
+    ),
+  ]);
+  const total = countRow!.n;
   return { items, total, page, pages: Math.max(1, Math.ceil(total / perPage)) };
 }
 
-export function activityEntities(): string[] {
-  return all<{ entity: string }>('SELECT DISTINCT entity FROM activity_log ORDER BY entity').map((r) => r.entity);
+export async function activityEntities(): Promise<string[]> {
+  return (await all<{ entity: string }>('SELECT DISTINCT entity FROM activity_log ORDER BY entity')).map((r) => r.entity);
 }
 
-export function unreadMessageCount(): number {
-  return get<{ n: number }>('SELECT COUNT(*) AS n FROM messages WHERE read = 0')!.n;
+export async function unreadMessageCount(): Promise<number> {
+  return (await get<{ n: number }>('SELECT COUNT(*) AS n FROM messages WHERE read = 0'))!.n;
 }
 
-export function messagesPage(opts: { unread?: boolean; q?: string; page?: number; perPage?: number }) {
+export async function messagesPage(opts: { unread?: boolean; q?: string; page?: number; perPage?: number }) {
   const where: string[] = ['1=1'];
   const params: Param[] = [];
   if (opts.unread) where.push('read = 0');
@@ -46,8 +49,11 @@ export function messagesPage(opts: { unread?: boolean; q?: string; page?: number
   const w = where.join(' AND ');
   const perPage = opts.perPage ?? 25;
   const page = Math.max(1, opts.page ?? 1);
-  const total = get<{ n: number }>(`SELECT COUNT(*) AS n FROM messages WHERE ${w}`, ...params)!.n;
-  const items = all<Message>(`SELECT * FROM messages WHERE ${w} ORDER BY created_at DESC LIMIT ? OFFSET ?`, ...params, perPage, (page - 1) * perPage);
+  const [countRow, items] = await Promise.all([
+    get<{ n: number }>(`SELECT COUNT(*) AS n FROM messages WHERE ${w}`, ...params),
+    all<Message>(`SELECT * FROM messages WHERE ${w} ORDER BY created_at DESC LIMIT ? OFFSET ?`, ...params, perPage, (page - 1) * perPage),
+  ]);
+  const total = countRow!.n;
   return { items, total, page, pages: Math.max(1, Math.ceil(total / perPage)) };
 }
 
@@ -65,7 +71,7 @@ export interface QueueItem {
 const QUEUE_BASE = `SELECT a.id, a.title, a.status, a.updated_at, a.published_at, a.views, s.name AS section_name, u.name AS creator_name
   FROM articles a LEFT JOIN sections s ON s.id = a.section_id LEFT JOIN users u ON u.id = a.created_by`;
 
-export function articleQueue(statuses: ArticleStatus[], limit = 8, createdBy?: number): QueueItem[] {
+export async function articleQueue(statuses: ArticleStatus[], limit = 8, createdBy?: number): Promise<QueueItem[]> {
   const marks = statuses.map(() => '?').join(',');
   return all<QueueItem>(
     `${QUEUE_BASE} WHERE a.status IN (${marks}) ${createdBy ? 'AND a.created_by = ?' : ''} ORDER BY (a.status = 'review') DESC, a.updated_at DESC LIMIT ?`,
@@ -75,11 +81,11 @@ export function articleQueue(statuses: ArticleStatus[], limit = 8, createdBy?: n
   );
 }
 
-export function scheduledArticles(limit = 8): QueueItem[] {
+export async function scheduledArticles(limit = 8): Promise<QueueItem[]> {
   return all<QueueItem>(`${QUEUE_BASE} WHERE a.published_at > ? AND a.status IN ('scheduled','published') ORDER BY a.published_at ASC LIMIT ?`, nowIso(), limit);
 }
 
-export function topArticles(limit = 8, days = 30): (QueueItem & { recent: number })[] {
+export async function topArticles(limit = 8, days = 30): Promise<(QueueItem & { recent: number })[]> {
   const since = new Date(Date.now() - (days - 1) * 864e5).toISOString().slice(0, 10);
   return all<QueueItem & { recent: number }>(
     `SELECT a.id, a.title, a.status, a.updated_at, a.published_at, a.views, s.name AS section_name, NULL AS creator_name,
@@ -94,7 +100,7 @@ export function topArticles(limit = 8, days = 30): (QueueItem & { recent: number
 }
 
 /** Tags with counts across all article statuses (admin view). */
-export function adminTags(q?: string): (Tag & { total_count: number })[] {
+export async function adminTags(q?: string): Promise<(Tag & { total_count: number })[]> {
   return all<Tag & { total_count: number }>(
     `SELECT t.*, (SELECT COUNT(*) FROM article_tags at WHERE at.tag_id = t.id) AS total_count,
        (SELECT COUNT(*) FROM article_tags at JOIN articles a ON a.id = at.article_id
@@ -105,11 +111,11 @@ export function adminTags(q?: string): (Tag & { total_count: number })[] {
   );
 }
 
-export function tagNames(): string[] {
-  return all<{ name: string }>('SELECT name FROM tags ORDER BY name COLLATE NOCASE').map((r) => r.name);
+export async function tagNames(): Promise<string[]> {
+  return (await all<{ name: string }>('SELECT name FROM tags ORDER BY name COLLATE NOCASE')).map((r) => r.name);
 }
 
-export function mediaPage(opts: { q?: string; kind?: string; page?: number; perPage?: number }) {
+export async function mediaPage(opts: { q?: string; kind?: string; page?: number; perPage?: number }) {
   const where: string[] = ['1=1'];
   const params: Param[] = [];
   if (opts.q) {
@@ -126,8 +132,11 @@ export function mediaPage(opts: { q?: string; kind?: string; page?: number; perP
   const w = where.join(' AND ');
   const perPage = opts.perPage ?? 60;
   const page = Math.max(1, opts.page ?? 1);
-  const total = get<{ n: number }>(`SELECT COUNT(*) AS n FROM media WHERE ${w}`, ...params)!.n;
-  const items = all<Media>(`SELECT * FROM media WHERE ${w} ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?`, ...params, perPage, (page - 1) * perPage);
+  const [countRow, items] = await Promise.all([
+    get<{ n: number }>(`SELECT COUNT(*) AS n FROM media WHERE ${w}`, ...params),
+    all<Media>(`SELECT * FROM media WHERE ${w} ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?`, ...params, perPage, (page - 1) * perPage),
+  ]);
+  const total = countRow!.n;
   return { items, total, page, pages: Math.max(1, Math.ceil(total / perPage)) };
 }
 
@@ -137,9 +146,9 @@ export function mediaPage(opts: { q?: string; kind?: string; page?: number; perP
  * images/audio, section heroes, newsletter images, page bodies, user avatars and any settings value
  * (logoImage, seo.ogImage …, stored as JSON).
  */
-export function mediaUsage(url: string): number {
+export async function mediaUsage(url: string): Promise<number> {
   if (!url) return 0;
-  return get<{ n: number }>(
+  return (await get<{ n: number }>(
     `SELECT (SELECT COUNT(*) FROM articles WHERE hero_image = ?1 OR instr(body, ?1) > 0)
           + (SELECT COUNT(*) FROM authors WHERE photo = ?1)
           + (SELECT COUNT(*) FROM issues WHERE cover_image = ?1)
@@ -152,10 +161,10 @@ export function mediaUsage(url: string): number {
           + (SELECT COUNT(*) FROM users WHERE avatar = ?1)
           + (SELECT COUNT(*) FROM settings WHERE instr(value, ?1) > 0) AS n`,
     url,
-  )!.n;
+  ))!.n;
 }
 
-export function allSubscribers(newsletterId?: number, q?: string): Subscriber[] {
+export async function allSubscribers(newsletterId?: number, q?: string): Promise<Subscriber[]> {
   const where: string[] = ['1=1'];
   const params: Param[] = [];
   if (newsletterId) {
@@ -173,63 +182,63 @@ export function allSubscribers(newsletterId?: number, q?: string): Subscriber[] 
   );
 }
 
-export function articleOwner(id: number): { id: number; created_by: number | null; status: ArticleStatus; title: string; slug: string } | null {
-  return get('SELECT id, created_by, status, title, slug FROM articles WHERE id = ?', id) ?? null;
+export async function articleOwner(id: number): Promise<{ id: number; created_by: number | null; status: ArticleStatus; title: string; slug: string } | null> {
+  return (await get<{ id: number; created_by: number | null; status: ArticleStatus; title: string; slug: string }>('SELECT id, created_by, status, title, slug FROM articles WHERE id = ?', id)) ?? null;
 }
 
-export function userPasswordHash(id: number): string | null {
-  return get<{ password_hash: string }>('SELECT password_hash FROM users WHERE id = ?', id)?.password_hash ?? null;
+export async function userPasswordHash(id: number): Promise<string | null> {
+  return (await get<{ password_hash: string }>('SELECT password_hash FROM users WHERE id = ?', id))?.password_hash ?? null;
 }
 
-export function adminCount(): number {
-  return get<{ n: number }>("SELECT COUNT(*) AS n FROM users WHERE role = 'admin' AND active = 1")!.n;
+export async function adminCount(): Promise<number> {
+  return (await get<{ n: number }>("SELECT COUNT(*) AS n FROM users WHERE role = 'admin' AND active = 1"))!.n;
 }
 
-export function subscriptionCounts(): Record<string, number> {
+export async function subscriptionCounts(): Promise<Record<string, number>> {
   const out: Record<string, number> = { all: 0, pending: 0, active: 0, cancelled: 0 };
-  for (const r of all<{ status: string; n: number }>('SELECT status, COUNT(*) AS n FROM subscriptions GROUP BY status')) {
+  for (const r of await all<{ status: string; n: number }>('SELECT status, COUNT(*) AS n FROM subscriptions GROUP BY status')) {
     out[r.status] = r.n;
     out.all += r.n;
   }
   return out;
 }
 
-export function episodeCountsByPodcast(): Record<number, number> {
+export async function episodeCountsByPodcast(): Promise<Record<number, number>> {
   const out: Record<number, number> = {};
-  for (const r of all<{ podcast_id: number; n: number }>('SELECT podcast_id, COUNT(*) AS n FROM episodes GROUP BY podcast_id')) out[r.podcast_id] = r.n;
+  for (const r of await all<{ podcast_id: number; n: number }>('SELECT podcast_id, COUNT(*) AS n FROM episodes GROUP BY podcast_id')) out[r.podcast_id] = r.n;
   return out;
 }
 
-export function sectionArticleTotals(): Record<number, number> {
+export async function sectionArticleTotals(): Promise<Record<number, number>> {
   const out: Record<number, number> = {};
-  for (const r of all<{ section_id: number; n: number }>('SELECT section_id, COUNT(*) AS n FROM articles WHERE section_id IS NOT NULL GROUP BY section_id')) out[r.section_id] = r.n;
+  for (const r of await all<{ section_id: number; n: number }>('SELECT section_id, COUNT(*) AS n FROM articles WHERE section_id IS NOT NULL GROUP BY section_id')) out[r.section_id] = r.n;
   return out;
 }
 
-export function authorArticleTotals(): Record<number, number> {
+export async function authorArticleTotals(): Promise<Record<number, number>> {
   const out: Record<number, number> = {};
-  for (const r of all<{ author_id: number; n: number }>('SELECT author_id, COUNT(*) AS n FROM article_authors GROUP BY author_id')) out[r.author_id] = r.n;
+  for (const r of await all<{ author_id: number; n: number }>('SELECT author_id, COUNT(*) AS n FROM article_authors GROUP BY author_id')) out[r.author_id] = r.n;
   return out;
 }
 
 /** Persist an explicit ordering (position = index) for sortable tables. */
-export function setPositions(table: 'sections' | 'authors' | 'podcasts' | 'newsletters' | 'plans', orderedIds: number[]) {
-  orderedIds.forEach((id, i) => run(`UPDATE ${table} SET position = ? WHERE id = ?`, i, id));
+export async function setPositions(table: 'sections' | 'authors' | 'podcasts' | 'newsletters' | 'plans', orderedIds: number[]): Promise<void> {
+  await batch(orderedIds.map((id, i) => ({ sql: `UPDATE ${table} SET position = ? WHERE id = ?`, args: [i, id] })));
 }
 
 /** Move one row up/down within an ordered table; returns false if it can't move. */
-export function moveRow(table: 'sections' | 'authors' | 'podcasts' | 'newsletters' | 'plans', id: number, dir: -1 | 1): boolean {
+export async function moveRow(table: 'sections' | 'authors' | 'podcasts' | 'newsletters' | 'plans', id: number, dir: -1 | 1): Promise<boolean> {
   const order = table === 'plans' ? 'position, id' : table === 'podcasts' ? 'position, title' : 'position, name';
-  const list = all<{ id: number }>(`SELECT id FROM ${table} ORDER BY ${order}`).map((r) => r.id);
+  const list = (await all<{ id: number }>(`SELECT id FROM ${table} ORDER BY ${order}`)).map((r) => r.id);
   const i = list.indexOf(id);
   const j = i + dir;
   if (i < 0 || j < 0 || j >= list.length) return false;
   [list[i], list[j]] = [list[j]!, list[i]!];
-  setPositions(table, list);
+  await setPositions(table, list);
   return true;
 }
 
-export function nextPosition(table: 'sections' | 'authors' | 'podcasts' | 'newsletters' | 'plans'): number {
-  return (get<{ n: number | null }>(`SELECT MAX(position) AS n FROM ${table}`)?.n ?? -1) + 1;
+export async function nextPosition(table: 'sections' | 'authors' | 'podcasts' | 'newsletters' | 'plans'): Promise<number> {
+  return ((await get<{ n: number | null }>(`SELECT MAX(position) AS n FROM ${table}`))?.n ?? -1) + 1;
 }
 

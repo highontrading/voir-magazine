@@ -2,8 +2,8 @@ import Link from 'next/link';
 import { listPublished } from '@/lib/data/articles';
 import { Card, toCard } from './Card';
 
-export function NotFoundBody() {
-  const latest = listPublished({ limit: 4 });
+export async function NotFoundBody() {
+  const latest = await listPublished({ limit: 4 });
   return (
     <div className="wrap page-enter">
       <div className="notfound">

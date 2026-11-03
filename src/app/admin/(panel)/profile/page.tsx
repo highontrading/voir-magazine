@@ -10,7 +10,7 @@ export const metadata = { title: 'My profile' };
 
 export default async function ProfilePage() {
   const me = await requireUser();
-  const recent = activityPage(1, 8, { userId: me.id }).items;
+  const recent = (await activityPage(1, 8, { userId: me.id })).items;
   return (
     <>
       <PageHeader title="My profile" subtitle={<>Signed in as {me.email} · <StatusPill status={me.role} /></>} />

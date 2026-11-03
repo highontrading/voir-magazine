@@ -15,8 +15,7 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
   const sp = await searchParams;
   const q = (sp.q ?? '').trim().slice(0, 100);
   const page = clampInt(sp.page, 1, 1, 10_000);
-  const { items, total } = q ? searchArticles(q, PER, (page - 1) * PER) : { items: [], total: 0 };
-  const tags = popularTags(16);
+  const [{ items, total }, tags] = await Promise.all([q ? searchArticles(q, PER, (page - 1) * PER) : { items: [], total: 0 }, popularTags(16)]);
   return (
     <div className="wrap page-enter">
       <header className="page-head page-head--left" style={{ borderBottom: 0, marginBottom: 0 }}>

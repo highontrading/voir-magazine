@@ -11,8 +11,7 @@ import type { ArticlePayload } from '@/lib/admin/article';
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   if (id === 'new') return { title: 'New story' };
-  const a = getArticleById(Number(id));
-  const user = await currentUser();
+  const [a, user] = await Promise.all([getArticleById(Number(id)), currentUser()]);
   const mayView = !!a && !!user && (can(user, 'articles.all') || a.created_by === user.id);
   return { title: mayView ? `Edit: ${a!.title}` : 'Edit story' };
 }
@@ -21,7 +20,7 @@ export default async function EditArticlePage({ params }: { params: Promise<{ id
   const user = await requireUser();
   const { id } = await params;
   const isNew = id === 'new';
-  const article = isNew ? null : getArticleById(Number(id));
+  const article = isNew ? null : await getArticleById(Number(id));
   if (!isNew && !article) notFound();
   const all = can(user, 'articles.all');
   if (article && !all && article.created_by !== user.id) {
@@ -32,7 +31,13 @@ export default async function EditArticlePage({ params }: { params: Promise<{ id
       </div>
     );
   }
-  const authors = listAuthors();
+  const [authors, sections, issues, tagSuggestions, settings] = await Promise.all([
+    listAuthors(),
+    listSections(),
+    listIssues(false),
+    tagNames(),
+    getSettings(),
+  ]);
   const me = authors.find((a) => a.email && a.email.toLowerCase() === user.email.toLowerCase()) ?? authors.find((a) => a.name === user.name);
   const initial: ArticlePayload = article
     ? {
@@ -86,7 +91,6 @@ export default async function EditArticlePage({ params }: { params: Promise<{ id
         allow_index: true,
       };
   const locked = !!article && !can(user, 'articles.publish') && ['published', 'scheduled', 'archived'].includes(article.status);
-  const settings = getSettings();
   return (
     <ArticleEditor
       key={article?.id ?? 'new'}
@@ -97,10 +101,10 @@ export default async function EditArticlePage({ params }: { params: Promise<{ id
         views: article?.views ?? 0,
         reading_time: article?.reading_time ?? 0,
       }}
-      sections={listSections().map((s) => ({ id: s.id, name: s.name, color: s.color }))}
+      sections={sections.map((s) => ({ id: s.id, name: s.name, color: s.color }))}
       authors={authors.map((a) => ({ id: a.id, name: a.name, title: a.title }))}
-      issues={listIssues(false).map((i) => ({ id: i.id, title: i.title, issue_date: i.issue_date }))}
-      tagSuggestions={tagNames()}
+      issues={issues.map((i) => ({ id: i.id, title: i.title, issue_date: i.issue_date }))}
+      tagSuggestions={tagSuggestions}
       canPublish={can(user, 'articles.publish')}
       locked={locked}
       siteName={settings.siteName}

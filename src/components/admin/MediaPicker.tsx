@@ -105,7 +105,7 @@ export function MediaPicker({ open, onClose, onSelect, kind = 'image', title }: 
         onDrop={(e) => {
           e.preventDefault();
           setDrag(false);
-          handleFiles(e.dataTransfer.files);
+          void handleFiles(e.dataTransfer.files);
         }}
       >
         <div className="adm-modal-head">
@@ -161,7 +161,7 @@ export function MediaPicker({ open, onClose, onSelect, kind = 'image', title }: 
                   onClick={() => {
                     const p = page + 1;
                     setPage(p);
-                    load(q, p);
+                    void load(q, p);
                   }}
                 >
                   {loading ? 'Loading…' : 'Load more'}
@@ -227,7 +227,6 @@ export function MediaPicker({ open, onClose, onSelect, kind = 'image', title }: 
 
 export function MediaThumb({ m, large }: { m: Pick<Media, 'url' | 'mime' | 'alt' | 'original_name'>; large?: boolean }) {
   if (m.mime.startsWith('image/')) {
-    // eslint-disable-next-line @next/next/no-img-element
     return <img src={m.url} alt={m.alt || ''} loading="lazy" />;
   }
   if (m.mime.startsWith('video/')) {

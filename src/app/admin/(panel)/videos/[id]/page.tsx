@@ -16,10 +16,13 @@ export const metadata = { title: 'Edit video' };
 export default async function VideoEdit({ params }: { params: Promise<{ id: string }> }) {
   await requireUser('content.manage');
   const { id } = await params;
-  const v = id === 'new' ? null : getVideoById(Number(id));
+  const [v, sections, seriesRows] = await Promise.all([
+    id === 'new' ? null : getVideoById(Number(id)),
+    listSections(),
+    all<{ series: string }>("SELECT DISTINCT series FROM videos WHERE series != '' ORDER BY series"),
+  ]);
   if (id !== 'new' && !v) notFound();
-  const sections = listSections();
-  const series = all<{ series: string }>("SELECT DISTINCT series FROM videos WHERE series != '' ORDER BY series").map((r) => r.series);
+  const series = seriesRows.map((r) => r.series);
   return (
     <>
       <PageHeader

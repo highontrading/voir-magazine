@@ -4,8 +4,8 @@ import { NewsletterPicker } from '@/components/site/Forms';
 
 export const metadata: Metadata = { title: 'Newsletters', description: 'Sign up for Voirtales newsletters.' };
 
-export default function NewslettersPage() {
-  const items = listNewsletters();
+export default async function NewslettersPage() {
+  const items = await listNewsletters();
   return (
     <div className="page-enter">
       <header className="page-head">

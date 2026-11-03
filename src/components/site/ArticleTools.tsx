@@ -33,7 +33,7 @@ export function ShareBar({ title, path, articleId, saved: initialSaved, accounts
         className="share-btn"
         aria-label="Copy link"
         onClick={() => {
-          navigator.clipboard?.writeText(url).then(() => {
+          void navigator.clipboard?.writeText(url).then(() => {
             setCopied(true);
             setTimeout(() => setCopied(false), 1600);
           });

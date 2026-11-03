@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { requireUser, can } from '@/lib/auth';
 import { mediaPage } from '@/lib/data/admin';
-import { dashboardStats } from '@/lib/data/site';
+import { mediaCount } from '@/lib/data/site';
 import { PageHeader, Pagination, hrefWith, sp, type SearchParams } from '@/components/admin/ui';
 import { Icon } from '@/components/admin/Icon';
 import { MediaLibrary } from './MediaLibrary';
@@ -20,8 +20,10 @@ export default async function MediaPage({ searchParams }: { searchParams: Search
   const user = await requireUser();
   const s = await searchParams;
   const params = { q: sp(s.q), kind: sp(s.kind), page: sp(s.page) };
-  const data = mediaPage({ q: params.q || undefined, kind: params.kind || undefined, page: Number(params.page) || 1, perPage: 48 });
-  const total = dashboardStats().media;
+  const [data, total] = await Promise.all([
+    mediaPage({ q: params.q || undefined, kind: params.kind || undefined, page: Number(params.page) || 1, perPage: 48 }),
+    mediaCount(),
+  ]);
   return (
     <>
       <PageHeader title="Media library" subtitle={`${total.toLocaleString()} files · images, video, audio and PDFs up to 25 MB.`} />

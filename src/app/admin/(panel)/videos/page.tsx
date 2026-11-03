@@ -16,7 +16,7 @@ export default async function VideosPage({ searchParams }: { searchParams: Searc
   const q = sp(s.q).toLowerCase();
   const status = sp(s.status);
   const page = Math.max(1, Number(sp(s.page)) || 1);
-  const everything = listVideos({ all: true, limit: 5000 }).sort((a, b) => (b.published_at ?? '').localeCompare(a.published_at ?? ''));
+  const everything = (await listVideos({ all: true, limit: 5000 })).sort((a, b) => (b.published_at ?? '').localeCompare(a.published_at ?? ''));
   const filtered = everything.filter((v) => (!status || v.status === status) && (!q || `${v.title} ${v.series}`.toLowerCase().includes(q)));
   const pages = Math.max(1, Math.ceil(filtered.length / PER));
   const rows = filtered.slice((page - 1) * PER, page * PER);
@@ -73,7 +73,6 @@ export default async function VideosPage({ searchParams }: { searchParams: Searc
                     <td>
                       <div className="adm-story-cell">
                         <div className="adm-thumb">
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
                           {v.thumbnail ? <img src={v.thumbnail} alt="" loading="lazy" /> : <Icon name="play" size={14} />}
                         </div>
                         <div>

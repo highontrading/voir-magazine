@@ -15,7 +15,7 @@ export function MarkRead({ id }: { id: number }) {
     fd.set('id', String(id));
     fd.set('read', '1');
     fd.set('silent', '1');
-    markMessageAction(null, fd).then(() => router.refresh());
+    void markMessageAction(null, fd).then(() => router.refresh());
   }, [id, router]);
   return null;
 }

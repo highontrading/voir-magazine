@@ -29,15 +29,18 @@ export default async function ActivityPage({ searchParams }: { searchParams: Sea
   await requireUser('content.manage');
   const s = await searchParams;
   const params = { entity: sp(s.entity), user: sp(s.user), page: sp(s.page) };
-  const data = activityPage(Number(params.page) || 1, 40, { entity: params.entity || undefined, userId: Number(params.user) || undefined });
-  const users = listUsers();
+  const [data, users, entities] = await Promise.all([
+    activityPage(Number(params.page) || 1, 40, { entity: params.entity || undefined, userId: Number(params.user) || undefined }),
+    listUsers(),
+    activityEntities(),
+  ]);
   return (
     <>
       <PageHeader title="Activity log" subtitle="An audit trail of changes made in the admin." />
       <form className="adm-filters" method="get">
         <select className="adm-input" name="entity" defaultValue={params.entity} aria-label="Type">
           <option value="">Everything</option>
-          {activityEntities().map((e) => (
+          {entities.map((e) => (
             <option key={e} value={e}>
               {e}
             </option>

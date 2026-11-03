@@ -11,7 +11,7 @@ export const metadata = { title: 'Pages' };
 
 export default async function PagesPage() {
   await requireUser('content.manage');
-  const pages = listPages();
+  const pages = await listPages();
   return (
     <>
       <PageHeader

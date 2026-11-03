@@ -51,20 +51,20 @@ function overItemCap(key: string): boolean {
   return false;
 }
 
-function isPublicArticle(id: number): boolean {
-  return !!get<{ id: number }>(
+async function isPublicArticle(id: number): Promise<boolean> {
+  return !!(await get<{ id: number }>(
     "SELECT id FROM articles WHERE id = ? AND status IN ('published','scheduled') AND published_at IS NOT NULL AND published_at <= ?",
     id,
     nowIso(),
-  );
+  ));
 }
 
-function isPublicVideo(id: number): boolean {
-  return !!get<{ id: number }>(
+async function isPublicVideo(id: number): Promise<boolean> {
+  return !!(await get<{ id: number }>(
     "SELECT id FROM videos WHERE id = ? AND status = 'published' AND published_at IS NOT NULL AND published_at <= ?",
     id,
     nowIso(),
-  );
+  ));
 }
 
 export async function POST(req: Request) {
@@ -75,9 +75,9 @@ export async function POST(req: Request) {
     const item = `${isVideo ? 'v' : 'a'}:${id}`;
     if (throttled(`${clientIp(req)}:${item}`)) return Response.json({ ok: true });
     if (isVideo) {
-      if (isPublicVideo(id) && !overItemCap(item)) recordVideoView(id);
-    } else if (isPublicArticle(id) && !overItemCap(item)) {
-      recordView(id);
+      if ((await isPublicVideo(id)) && !overItemCap(item)) await recordVideoView(id);
+    } else if ((await isPublicArticle(id)) && !overItemCap(item)) {
+      await recordView(id);
     }
     return Response.json({ ok: true });
   } catch {

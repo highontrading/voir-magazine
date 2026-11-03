@@ -35,8 +35,16 @@ BEGIN
 END;`,
 ).join('\n');
 
+/** Bump when SCHEMA or the boot migrations in db.ts change; the full script then re-runs once. */
+export const SCHEMA_VERSION = '2';
+
 export const SCHEMA = /* sql */ `
 PRAGMA foreign_keys = ON;
+
+CREATE TABLE IF NOT EXISTS _meta (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL
+);
 
 CREATE TABLE IF NOT EXISTS settings (
   key TEXT PRIMARY KEY,
@@ -120,6 +128,7 @@ CREATE TABLE IF NOT EXISTS articles (
   dek TEXT NOT NULL DEFAULT '',
   rubric TEXT NOT NULL DEFAULT '',
   body TEXT NOT NULL DEFAULT '',
+  body_text TEXT NOT NULL DEFAULT '',
   section_id INTEGER REFERENCES sections(id) ON DELETE SET NULL,
   issue_id INTEGER REFERENCES issues(id) ON DELETE SET NULL,
   type TEXT NOT NULL DEFAULT 'story',

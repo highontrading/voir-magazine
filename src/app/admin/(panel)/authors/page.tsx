@@ -12,9 +12,8 @@ export const metadata = { title: 'Authors' };
 export default async function AuthorsPage({ searchParams }: { searchParams: SearchParams }) {
   await requireUser('content.manage');
   const q = sp((await searchParams).q).toLowerCase();
-  const all = listAuthors();
+  const [all, totals] = await Promise.all([listAuthors(), authorArticleTotals()]);
   const authors = q ? all.filter((a) => `${a.name} ${a.title} ${a.email}`.toLowerCase().includes(q)) : all;
-  const totals = authorArticleTotals();
   return (
     <>
       <PageHeader

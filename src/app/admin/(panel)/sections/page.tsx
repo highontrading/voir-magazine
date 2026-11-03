@@ -11,8 +11,7 @@ export const metadata = { title: 'Sections' };
 
 export default async function SectionsPage() {
   await requireUser('content.manage');
-  const sections = listSections();
-  const totals = sectionArticleTotals();
+  const [sections, totals] = await Promise.all([listSections(), sectionArticleTotals()]);
   return (
     <>
       <PageHeader

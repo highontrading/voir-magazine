@@ -10,11 +10,10 @@ import { Cover } from '@/components/site/Cover';
 
 export const metadata: Metadata = { title: 'The Magazine', description: 'The current issue of Voirtales and the cover archive.' };
 
-export default function MagazinePage() {
-  const s = getSettings();
-  const issues = listIssues();
+export default async function MagazinePage() {
+  const [s, issues] = await Promise.all([getSettings(), listIssues()]);
   const current = issues[0];
-  const inIssue = current ? listPublished({ issueId: current.id, limit: 12 }) : [];
+  const inIssue = current ? await listPublished({ issueId: current.id, limit: 12 }) : [];
   return (
     <div className="page-enter">
       {current ? (

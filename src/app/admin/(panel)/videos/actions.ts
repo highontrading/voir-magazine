@@ -20,7 +20,7 @@ export async function saveVideoAction(_p: ActionResult | null, fd: FormData): Pr
   if (Object.keys(errors).length) return fail(Object.values(errors)[0]!, errors);
   const status = str(fd, 'status') === 'draft' ? 'draft' : 'published';
   try {
-    const vid = saveVideo(
+    const vid = await saveVideo(
       {
         title,
         slug: str(fd, 'slug', 90),
@@ -36,7 +36,7 @@ export async function saveVideoAction(_p: ActionResult | null, fd: FormData): Pr
       },
       id,
     );
-    logActivity(user.id, id ? 'updated' : status === 'published' ? 'published' : 'created', 'video', vid, title);
+    await logActivity(user.id, id ? 'updated' : status === 'published' ? 'published' : 'created', 'video', vid, title);
     revalidatePath('/', 'layout');
     return ok(id ? 'Video saved.' : 'Video added.', { redirect: '/admin/videos' });
   } catch (e) {
@@ -46,10 +46,10 @@ export async function saveVideoAction(_p: ActionResult | null, fd: FormData): Pr
 
 export async function deleteVideoAction(_p: ActionResult | null, fd: FormData): Promise<ActionResult> {
   const user = await requireUser('content.manage');
-  const v = getVideoById(int(fd, 'id'));
+  const v = await getVideoById(int(fd, 'id'));
   if (!v) return fail('Video not found.');
-  deleteVideo(v.id);
-  logActivity(user.id, 'deleted', 'video', null, v.title);
+  await deleteVideo(v.id);
+  await logActivity(user.id, 'deleted', 'video', null, v.title);
   revalidatePath('/', 'layout');
   return ok(`Deleted “${v.title}”.`, { redirect: '/admin/videos' });
 }

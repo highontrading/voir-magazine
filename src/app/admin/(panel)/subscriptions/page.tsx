@@ -27,9 +27,8 @@ export default async function SubscriptionsPage({ searchParams }: { searchParams
   const status = sp(s.status);
   const q = sp(s.q).toLowerCase();
   const page = Math.max(1, Number(sp(s.page)) || 1);
-  const counts = subscriptionCounts();
-  const plans = listPlans(false);
-  const orders = tab === 'orders' ? listSubscriptions(status || undefined).filter((o) => !q || `${o.name} ${o.email} ${o.city} ${o.country}`.toLowerCase().includes(q)) : [];
+  const [counts, plans, allOrders] = await Promise.all([subscriptionCounts(), listPlans(false), tab === 'orders' ? listSubscriptions(status || undefined) : []]);
+  const orders = allOrders.filter((o) => !q || `${o.name} ${o.email} ${o.city} ${o.country}`.toLowerCase().includes(q));
   const pages = Math.max(1, Math.ceil(orders.length / PER));
   const rows = orders.slice((page - 1) * PER, page * PER);
 

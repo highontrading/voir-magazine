@@ -75,7 +75,6 @@ export function AdminShell({ groups, user, brand, children }: { groups: NavGroup
         </nav>
         <div className="adm-sidebar-foot">
           <span className="adm-avatar adm-avatar-sm">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
             {user.avatar ? <img src={user.avatar} alt="" /> : initials}
           </span>
           <div>
@@ -100,7 +99,6 @@ export function AdminShell({ groups, user, brand, children }: { groups: NavGroup
           <div className="adm-usermenu" ref={menuRef}>
             <button type="button" className="adm-usermenu-btn" aria-haspopup="menu" aria-expanded={menu} onClick={() => setMenu((m) => !m)}>
               <span className="adm-avatar adm-avatar-sm">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
                 {user.avatar ? <img src={user.avatar} alt="" /> : initials}
               </span>
               <span className="adm-hide-sm">{user.name}</span>

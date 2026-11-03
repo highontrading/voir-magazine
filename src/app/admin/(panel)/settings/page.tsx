@@ -7,7 +7,7 @@ export const metadata = { title: 'Settings' };
 
 export default async function SettingsPage() {
   await requireUser('settings.manage');
-  const { homepage: _h, ...settings } = getSettings();
+  const { homepage: _h, ...settings } = await getSettings();
   return (
     <>
       <PageHeader title="Settings" subtitle="Brand, theme, site-wide promos, footer, SEO defaults and feature switches." />

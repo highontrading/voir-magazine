@@ -20,7 +20,8 @@ export async function saveAuthorAction(_p: ActionResult | null, fd: FormData): P
   if (Object.keys(errors).length) return fail(Object.values(errors)[0]!, errors);
   const handle = (v: string) => v.replace(/^@/, '').replace(/^https?:\/\/(www\.)?(x|twitter|instagram)\.com\//i, '').replace(/\/$/, '');
   try {
-    const aid = saveAuthor(
+    const position = str(fd, 'position') === '' ? (id ? (await getAuthorById(id))?.position ?? 0 : await nextPosition('authors')) : int(fd, 'position');
+    const aid = await saveAuthor(
       {
         name,
         slug: str(fd, 'slug', 90),
@@ -32,11 +33,11 @@ export async function saveAuthorAction(_p: ActionResult | null, fd: FormData): P
         instagram: handle(str(fd, 'instagram', 100)),
         website,
         on_masthead: bool(fd, 'on_masthead') ? 1 : 0,
-        position: str(fd, 'position') === '' ? (id ? getAuthorById(id)?.position ?? 0 : nextPosition('authors')) : int(fd, 'position'),
+        position,
       },
       id,
     );
-    logActivity(user.id, id ? 'updated' : 'created', 'author', aid, name);
+    await logActivity(user.id, id ? 'updated' : 'created', 'author', aid, name);
     revalidatePath('/', 'layout');
     return ok(id ? 'Contributor saved.' : 'Contributor added.', { redirect: '/admin/authors' });
   } catch (e) {
@@ -46,17 +47,17 @@ export async function saveAuthorAction(_p: ActionResult | null, fd: FormData): P
 
 export async function deleteAuthorAction(_p: ActionResult | null, fd: FormData): Promise<ActionResult> {
   const user = await requireUser('content.manage');
-  const a = getAuthorById(int(fd, 'id'));
+  const a = await getAuthorById(int(fd, 'id'));
   if (!a) return fail('Contributor not found.');
-  deleteAuthor(a.id);
-  logActivity(user.id, 'deleted', 'author', null, a.name);
+  await deleteAuthor(a.id);
+  await logActivity(user.id, 'deleted', 'author', null, a.name);
   revalidatePath('/', 'layout');
   return ok(`Removed ${a.name}.`, { redirect: '/admin/authors' });
 }
 
 export async function moveAuthorAction(_p: ActionResult | null, fd: FormData): Promise<ActionResult> {
   await requireUser('content.manage');
-  if (!moveRow('authors', int(fd, 'id'), int(fd, 'dir') < 0 ? -1 : 1)) return fail('Can’t move further.');
+  if (!(await moveRow('authors', int(fd, 'id'), int(fd, 'dir') < 0 ? -1 : 1))) return fail('Can’t move further.');
   revalidatePath('/', 'layout');
   return ok();
 }

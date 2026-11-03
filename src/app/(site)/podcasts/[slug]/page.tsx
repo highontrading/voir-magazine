@@ -7,14 +7,14 @@ import { formatDate } from '@/lib/utils';
 type Props = { params: Promise<{ slug: string }> };
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const p = getPodcast((await params).slug);
+  const p = await getPodcast((await params).slug);
   return p && p.active ? { title: p.title, description: p.description } : { title: 'Podcast not found' };
 }
 
 export default async function ShowPage({ params }: Props) {
-  const p = getPodcast((await params).slug);
+  const p = await getPodcast((await params).slug);
   if (!p || !p.active) notFound();
-  const eps = listEpisodes(p.id);
+  const eps = await listEpisodes(p.id);
   return (
     <div className="page-enter">
       <section className="band-dark">

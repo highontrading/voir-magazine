@@ -49,7 +49,7 @@ export async function subscribeNewsletterAction(_prev: FormState, fd: FormData):
   const email = str(fd, 'email');
   if (!EMAIL.test(email)) return { error: 'Please enter a valid email address.', values: { email } };
   const ids = fd.getAll('nl').map(Number).filter(Boolean);
-  const added = subscribeEmail(email, ids, str(fd, 'source') || 'website');
+  const added = await subscribeEmail(email, ids, str(fd, 'source') || 'website');
   return {
     ok: true,
     message: added > 0 ? 'You’re on the list. Watch your inbox for our next edition.' : 'You’re already subscribed — thanks for reading!',
@@ -63,19 +63,19 @@ export async function contactAction(_prev: FormState, fd: FormData): Promise<For
   if (!name || !EMAIL.test(email) || body.length < 10)
     return { error: 'Please fill in your name, a valid email and a message (10+ characters).', values: pick(fd, ['name', 'email', 'topic', 'subject', 'body']) };
   if (str(fd, 'website')) return { ok: true, message: 'Thank you!' }; // honeypot
-  createMessage({ name, email, subject: str(fd, 'subject').slice(0, 200), topic: str(fd, 'topic') || 'general', body: body.slice(0, 8000) });
+  await createMessage({ name, email, subject: str(fd, 'subject').slice(0, 200), topic: str(fd, 'topic') || 'general', body: body.slice(0, 8000) });
   return { ok: true, message: 'Thank you — your message has been sent to our editors. We read everything.' };
 }
 
 export async function subscribePlanAction(_prev: FormState, fd: FormData): Promise<FormState> {
-  const plan = getPlan(Number(fd.get('plan')));
+  const plan = await getPlan(Number(fd.get('plan')));
   const name = str(fd, 'name');
   const email = str(fd, 'email');
   const values = pick(fd, ['name', 'email', 'address', 'city', 'country', 'postal_code']);
   if (!plan || !plan.active) return { error: 'Please choose a plan.', values };
   if (!name || !EMAIL.test(email)) return { error: 'Please enter your name and a valid email.', values };
   const reader = await currentReader();
-  createSubscription({
+  await createSubscription({
     plan_id: plan.id,
     reader_id: reader?.id ?? null,
     name,
@@ -88,18 +88,18 @@ export async function subscribePlanAction(_prev: FormState, fd: FormData): Promi
   return { ok: true, message: `Welcome to Voirtales! Your ${plan.name} subscription request has been received. A confirmation has been sent to ${email}.` };
 }
 
-const accountsOff = () => !getSettings().features.readerAccounts;
+const accountsOff = async () => !(await getSettings()).features.readerAccounts;
 const OFF: FormState = { error: 'Reader accounts are currently unavailable.' };
 
 export async function signInAction(_prev: FormState, fd: FormData): Promise<FormState> {
-  if (accountsOff()) return OFF;
+  if (await accountsOff()) return OFF;
   const r = await loginReader(str(fd, 'email'), String(fd.get('password') ?? ''));
   if (!r) return { error: 'That email and password combination is not correct.', values: { email: str(fd, 'email') } };
   redirect(safeNext(str(fd, 'next')));
 }
 
 export async function registerAction(_prev: FormState, fd: FormData): Promise<FormState> {
-  if (accountsOff()) return OFF;
+  if (await accountsOff()) return OFF;
   const name = str(fd, 'name');
   const email = str(fd, 'email');
   const password = String(fd.get('password') ?? '');
@@ -109,7 +109,7 @@ export async function registerAction(_prev: FormState, fd: FormData): Promise<Fo
   if (password.length < 8) return { error: 'Password must be at least 8 characters.', values };
   const r = await registerReader(name, email, password);
   if ('error' in r) return { error: r.error, values };
-  if (fd.get('daily')) subscribeEmail(email, [], 'register');
+  if (fd.get('daily')) await subscribeEmail(email, [], 'register');
   redirect('/account?welcome=1');
 }
 
@@ -119,26 +119,26 @@ export async function signOutAction() {
 }
 
 export async function toggleSaveAction(articleId: number): Promise<{ saved?: boolean; needsLogin?: boolean }> {
-  if (accountsOff()) return {};
+  if (await accountsOff()) return {};
   const reader = await currentReader();
   if (!reader) return { needsLogin: true };
-  const saved = toggleSaved(reader.id, articleId);
+  const saved = await toggleSaved(reader.id, articleId);
   revalidatePath('/account');
   return { saved };
 }
 
 export async function newsletterPrefsAction(_prev: FormState, fd: FormData): Promise<FormState> {
-  if (accountsOff()) return OFF;
+  if (await accountsOff()) return OFF;
   const ids = fd.getAll('nl').map(Number).filter(Boolean);
   const reader = await currentReader();
   if (!reader) return { error: 'Please sign in again.', selected: ids };
-  setReaderNewsletters(reader.email, ids);
+  await setReaderNewsletters(reader.email, ids);
   revalidatePath('/account');
   return { ok: true, message: 'Your newsletter preferences have been updated.', selected: ids };
 }
 
 export async function profileAction(_prev: FormState, fd: FormData): Promise<FormState> {
-  if (accountsOff()) return OFF;
+  if (await accountsOff()) return OFF;
   const reader = await currentReader();
   if (!reader) return { error: 'Please sign in again.' };
   const name = str(fd, 'name');
@@ -147,7 +147,7 @@ export async function profileAction(_prev: FormState, fd: FormData): Promise<For
   if (!name) return { error: 'Name cannot be empty.', values };
   if (pw) {
     if (pw.length < 8) return { error: 'New password must be at least 8 characters.', values };
-    const row = get<{ password_hash: string }>('SELECT password_hash FROM readers WHERE id = ?', reader.id);
+    const row = await get<{ password_hash: string }>('SELECT password_hash FROM readers WHERE id = ?', reader.id);
     if (!row || !verifyPassword(String(fd.get('current') ?? ''), row.password_hash))
       return { error: 'Your current password is incorrect.', values };
   }

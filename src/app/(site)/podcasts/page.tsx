@@ -7,9 +7,8 @@ import { HeadphonesIcon } from '@/components/site/Icons';
 
 export const metadata: Metadata = { title: 'Podcasts', description: 'Listen to Voirtales podcasts.' };
 
-export default function PodcastsPage() {
-  const shows = listPodcasts();
-  const latest = listEpisodes(undefined, true, 8);
+export default async function PodcastsPage() {
+  const [shows, latest] = await Promise.all([listPodcasts(), listEpisodes(undefined, true, 8)]);
   return (
     <div className="page-enter">
       <header className="page-head">

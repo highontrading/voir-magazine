@@ -8,15 +8,15 @@ type Props = { params: Promise<{ slug: string; episode: string }> };
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug, episode } = await params;
-  const e = getEpisode(slug, episode);
+  const e = await getEpisode(slug, episode);
   return e ? { title: `${e.title} — ${e.podcast_title}`, description: e.description } : { title: 'Episode not found' };
 }
 
 export default async function EpisodePage({ params }: Props) {
   const { slug, episode } = await params;
-  const e = getEpisode(slug, episode);
+  const e = await getEpisode(slug, episode);
   if (!e) notFound();
-  const others = listEpisodes(e.podcast_id).filter((x) => x.id !== e.id).slice(0, 5);
+  const others = (await listEpisodes(e.podcast_id)).filter((x) => x.id !== e.id).slice(0, 5);
   return (
     <div className="wrap wrap--narrow page-enter" style={{ paddingTop: 56 }}>
       <Link href={`/podcasts/${slug}`} className="rubric">{e.podcast_title}</Link>

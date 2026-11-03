@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { Fragment } from 'react';
 import { getArticlesByIds, listPublished, mostPopular } from '@/lib/data/articles';
 import { currentIssue, latestVideos, listPodcasts } from '@/lib/data/content';
 import { getSection, getTag } from '@/lib/data/taxonomy';
@@ -25,41 +26,54 @@ class Used {
   }
 }
 
-export function HomePage({ s }: { s: SiteSettings }) {
+/** Block types that skip stories shown by earlier blocks, so they must load in page order. */
+const DEDUPED = new Set<HomeBlock['type']>(['hero', 'latest', 'section', 'tag', 'editors-picks']);
+
+export async function HomePage({ s }: { s: SiteSettings }) {
   const used = new Used();
+  // Deduped blocks load one after another (each sees the stories the blocks above it used);
+  // the others don't touch `used` and load in parallel.
+  const blocks = s.homepage.blocks.filter((b) => b.enabled);
+  let chain: Promise<unknown> = Promise.resolve();
+  const views = await Promise.all(
+    blocks.map((b) => {
+      if (!DEDUPED.has(b.type)) return homeBlockView(b, s, used);
+      const view = chain.then(() => homeBlockView(b, s, used));
+      chain = view.catch(() => undefined);
+      return view;
+    }),
+  );
   return (
     <div className="page-enter">
-      {s.homepage.blocks
-        .filter((b) => b.enabled)
-        .map((b) => (
-          <HomeBlockView key={b.id} b={b} s={s} used={used} />
-        ))}
+      {blocks.map((b, i) => (
+        <Fragment key={b.id}>{views[i]}</Fragment>
+      ))}
     </div>
   );
 }
 
-function HomeBlockView({ b, s, used }: { b: HomeBlock; s: SiteSettings; used: Used }) {
+async function homeBlockView(b: HomeBlock, s: SiteSettings, used: Used): Promise<React.ReactNode> {
   switch (b.type) {
     case 'hero':
-      return <HeroBlock s={s} used={used} />;
+      return HeroBlock({ s, used });
     case 'latest':
-      return <LatestBlock b={b} s={s} used={used} />;
+      return LatestBlock({ b, s, used });
     case 'section':
-      return <SectionBlock b={b} used={used} />;
+      return SectionBlock({ b, used });
     case 'tag':
-      return <TagBlock b={b} used={used} />;
+      return TagBlock({ b, used });
     case 'popular':
-      return <PopularBlock b={b} used={used} />;
+      return PopularBlock({ b, used });
     case 'video':
-      return <VideoBlock b={b} s={s} />;
+      return VideoBlock({ b, s });
     case 'magazine':
-      return <MagazineBlock b={b} s={s} />;
+      return MagazineBlock({ b, s });
     case 'newsletter':
       return <NewsletterBand s={s} title={b.title} />;
     case 'podcasts':
-      return <PodcastBlock b={b} />;
+      return PodcastBlock({ b });
     case 'editors-picks':
-      return <PicksBlock b={b} used={used} />;
+      return PicksBlock({ b, used });
     default:
       return null;
   }
@@ -67,18 +81,18 @@ function HomeBlockView({ b, s, used }: { b: HomeBlock; s: SiteSettings; used: Us
 
 /* ------------------------------------------------------------------ */
 
-function HeroBlock({ s, used }: { s: SiteSettings; used: Used }) {
-  const pinned = s.homepage.heroArticleId ? getArticlesByIds([s.homepage.heroArticleId])[0] : null;
-  const lead = pinned ?? listPublished({ flag: 'featured', limit: 1 })[0] ?? listPublished({ limit: 1 })[0];
+async function HeroBlock({ s, used }: { s: SiteSettings; used: Used }) {
+  const pinned = s.homepage.heroArticleId ? (await getArticlesByIds([s.homepage.heroArticleId]))[0] : null;
+  const lead = pinned ?? (await listPublished({ flag: 'featured', limit: 1 }))[0] ?? (await listPublished({ limit: 1 }))[0];
   if (!lead) return null;
   used.add([lead]);
-  const side = listPublished({ limit: 2, exclude: used.list, flag: 'featured' });
-  const sideFill = side.length < 2 ? listPublished({ limit: 2 - side.length, exclude: [...used.list, ...side.map((x) => x.id)] }) : [];
+  const side = await listPublished({ limit: 2, exclude: used.list, flag: 'featured' });
+  const sideFill = side.length < 2 ? await listPublished({ limit: 2 - side.length, exclude: [...used.list, ...side.map((x) => x.id)] }) : [];
   const left = used.add([...side, ...sideFill]);
-  const below = used.add(listPublished({ limit: 2, exclude: used.list, flag: 'editors_pick' }));
-  const pinnedTop = getArticlesByIds(s.homepage.topStoryIds.filter((id) => !used.ids.has(id)));
+  const below = used.add(await listPublished({ limit: 2, exclude: used.list, flag: 'editors_pick' }));
+  const pinnedTop = await getArticlesByIds(s.homepage.topStoryIds.filter((id) => !used.ids.has(id)));
   const top = used.add(
-    pinnedTop.length >= 5 ? pinnedTop.slice(0, 6) : [...pinnedTop, ...listPublished({ flag: 'top_story', limit: 6 - pinnedTop.length, exclude: [...used.list, ...pinnedTop.map((x) => x.id)] })],
+    pinnedTop.length >= 5 ? pinnedTop.slice(0, 6) : [...pinnedTop, ...(await listPublished({ flag: 'top_story', limit: 6 - pinnedTop.length, exclude: [...used.list, ...pinnedTop.map((x) => x.id)] }))],
   );
   return (
     <section className="wrap">
@@ -115,9 +129,9 @@ function HeroBlock({ s, used }: { s: SiteSettings; used: Used }) {
   );
 }
 
-function LatestBlock({ b, s, used }: { b: HomeBlock; s: SiteSettings; used: Used }) {
-  const items = used.add(listPublished({ limit: b.limit ?? 8, exclude: used.list }));
-  const issue = currentIssue();
+async function LatestBlock({ b, s, used }: { b: HomeBlock; s: SiteSettings; used: Used }) {
+  const [latest, issue, popular] = await Promise.all([listPublished({ limit: b.limit ?? 8, exclude: used.list }), currentIssue(), mostPopular(5, 14)]);
+  const items = used.add(latest);
   if (!items.length) return null;
   return (
     <section className="block wrap">
@@ -130,7 +144,7 @@ function LatestBlock({ b, s, used }: { b: HomeBlock; s: SiteSettings; used: Used
         </div>
         <aside className="rail">
           <div className="rail__sticky">
-            <Popular items={mostPopular(5, 14)} title="Most Read" rail />
+            <Popular items={popular} title="Most Read" rail />
             {issue ? (
               <div className="rail-box rail-box--dark" data-reveal>
                 <p className="eyebrow" style={{ color: '#ff8a98', fontSize: 11, marginBottom: 12 }}>In the magazine</p>
@@ -151,13 +165,13 @@ function LatestBlock({ b, s, used }: { b: HomeBlock; s: SiteSettings; used: Used
   );
 }
 
-function SectionBlock({ b, used }: { b: HomeBlock; used: Used }) {
-  const section = b.ref ? getSection(b.ref) : null;
+async function SectionBlock({ b, used }: { b: HomeBlock; used: Used }) {
+  const section = b.ref ? await getSection(b.ref) : null;
   if (!section) return null;
   const layout = b.layout || 'grid';
   const want = b.limit ?? (layout === 'mosaic' ? 5 : layout === 'list' ? 8 : 4);
-  let items = listPublished({ sectionId: section.id, limit: want, exclude: used.list });
-  if (!items.length) items = listPublished({ sectionId: section.id, limit: want });
+  let items = await listPublished({ sectionId: section.id, limit: want, exclude: used.list });
+  if (!items.length) items = await listPublished({ sectionId: section.id, limit: want });
   if (!items.length) return null;
   used.add(items);
   return <LayoutBlock layout={layout} title={b.title || section.name} href={`/${section.slug}`} more={`More ${section.name}`} cards={items.map(toCard)} />;
@@ -234,18 +248,18 @@ function LayoutBlock({
   );
 }
 
-function TagBlock({ b, used }: { b: HomeBlock; used: Used }) {
-  const tag = b.ref ? getTag(b.ref) : null;
+async function TagBlock({ b, used }: { b: HomeBlock; used: Used }) {
+  const tag = b.ref ? await getTag(b.ref) : null;
   if (!tag) return null;
   const layout = b.layout || 'grid';
   const want = b.limit ?? (layout === 'mosaic' ? 5 : layout === 'list' ? 8 : 4);
-  const items = used.add(listPublished({ tag: tag.slug, limit: want, exclude: used.list }));
+  const items = used.add(await listPublished({ tag: tag.slug, limit: want, exclude: used.list }));
   if (!items.length) return null;
   return <LayoutBlock layout={layout} title={b.title || tag.name} href={`/tag/${tag.slug}`} cards={items.map(toCard)} gridDek={false} />;
 }
 
-function PopularBlock({ b, used }: { b: HomeBlock; used: Used }) {
-  const items = mostPopular(b.limit ?? 5, 30);
+async function PopularBlock({ b, used }: { b: HomeBlock; used: Used }) {
+  const items = await mostPopular(b.limit ?? 5, 30);
   if (!items.length) return null;
   void used;
   return (
@@ -256,9 +270,9 @@ function PopularBlock({ b, used }: { b: HomeBlock; used: Used }) {
   );
 }
 
-function PicksBlock({ b, used }: { b: HomeBlock; used: Used }) {
-  let items = listPublished({ flag: 'editors_pick', limit: b.limit ?? 8, exclude: used.list });
-  if (items.length < 4) items = listPublished({ flag: 'editors_pick', limit: b.limit ?? 8 });
+async function PicksBlock({ b, used }: { b: HomeBlock; used: Used }) {
+  let items = await listPublished({ flag: 'editors_pick', limit: b.limit ?? 8, exclude: used.list });
+  if (items.length < 4) items = await listPublished({ flag: 'editors_pick', limit: b.limit ?? 8 });
   if (!items.length) return null;
   used.add(items);
   return (
@@ -273,8 +287,8 @@ function PicksBlock({ b, used }: { b: HomeBlock; used: Used }) {
   );
 }
 
-function VideoBlock({ b, s }: { b: HomeBlock; s: SiteSettings }) {
-  const videos = latestVideos(5);
+async function VideoBlock({ b, s }: { b: HomeBlock; s: SiteSettings }) {
+  const videos = await latestVideos(5);
   if (!videos.length) return null;
   const featured = videos.find((v) => v.featured) ?? videos[0]!;
   const rest = videos.filter((v) => v.id !== featured.id).slice(0, 4);
@@ -313,11 +327,11 @@ function VideoBlock({ b, s }: { b: HomeBlock; s: SiteSettings }) {
   );
 }
 
-function MagazineBlock({ b, s }: { b: HomeBlock; s: SiteSettings }) {
-  const issue = currentIssue();
+async function MagazineBlock({ b, s }: { b: HomeBlock; s: SiteSettings }) {
+  const issue = await currentIssue();
   if (!issue) return null;
   // Public-only lookup, so the button never points at a story readers can't open.
-  const cover = issue.cover_story_id ? getArticlesByIds([issue.cover_story_id])[0] : null;
+  const cover = issue.cover_story_id ? (await getArticlesByIds([issue.cover_story_id]))[0] : null;
   return (
     <section className="band-soft block" style={{ marginBottom: 56 }}>
       <div className="wrap issue-promo">
@@ -371,8 +385,8 @@ export function NewsletterBand({ s, title }: { s: SiteSettings; title?: string }
   );
 }
 
-function PodcastBlock({ b }: { b: HomeBlock }) {
-  const shows = listPodcasts().slice(0, b.limit ?? 3);
+async function PodcastBlock({ b }: { b: HomeBlock }) {
+  const shows = (await listPodcasts()).slice(0, b.limit ?? 3);
   if (!shows.length) return null;
   return (
     <section className="block wrap">

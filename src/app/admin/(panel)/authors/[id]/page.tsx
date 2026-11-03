@@ -13,7 +13,7 @@ export const metadata = { title: 'Edit contributor' };
 export default async function AuthorEdit({ params }: { params: Promise<{ id: string }> }) {
   await requireUser('content.manage');
   const { id } = await params;
-  const a = id === 'new' ? null : getAuthorById(Number(id));
+  const a = id === 'new' ? null : await getAuthorById(Number(id));
   if (id !== 'new' && !a) notFound();
   return (
     <>

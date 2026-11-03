@@ -30,19 +30,21 @@ export default async function ArticlesPage({ searchParams }: { searchParams: Sea
     page: sp(s.page),
   };
   const sort = (['updated', 'published', 'views', 'title'] as const).find((x) => x === params.sort) ?? 'updated';
-  const result = adminListArticles({
-    q: params.q || undefined,
-    status: params.status || undefined,
-    section: Number(params.section) || undefined,
-    author: all ? Number(params.author) || undefined : undefined,
-    createdBy: all ? undefined : user.id,
-    page: Number(params.page) || 1,
-    perPage: 20,
-    sort,
-  });
-  const counts = statusCounts(all ? undefined : user.id);
-  const sections = listSections();
-  const authors = all ? listAuthors() : [];
+  const [result, counts, sections, authors] = await Promise.all([
+    adminListArticles({
+      q: params.q || undefined,
+      status: params.status || undefined,
+      section: Number(params.section) || undefined,
+      author: all ? Number(params.author) || undefined : undefined,
+      createdBy: all ? undefined : user.id,
+      page: Number(params.page) || 1,
+      perPage: 20,
+      sort,
+    }),
+    statusCounts(all ? undefined : user.id),
+    listSections(),
+    all ? listAuthors() : [],
+  ]);
   const now = Date.now();
   const rows: ArticleRowLite[] = result.items.map((a) => ({
     id: a.id,

@@ -4,14 +4,13 @@ import { getSettings } from '@/lib/settings';
 import { cleanHtml } from '@/lib/html';
 import { ContactForm } from '@/components/site/Forms';
 
-export function generateMetadata(): Metadata {
-  const page = getPage('contact');
+export async function generateMetadata(): Promise<Metadata> {
+  const page = await getPage('contact');
   return { title: page?.title || 'Contact Us', description: page?.seo_description || page?.intro || undefined };
 }
 
-export default function ContactPage() {
-  const page = getPage('contact');
-  const s = getSettings();
+export default async function ContactPage() {
+  const [page, s] = await Promise.all([getPage('contact'), getSettings()]);
   return (
     <div className="page-enter">
       <header className="page-head">

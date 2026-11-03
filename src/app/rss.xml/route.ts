@@ -7,10 +7,9 @@ export const dynamic = 'force-dynamic';
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
 export async function GET(req: Request) {
-  const s = getSettings();
   const origin = process.env.SITE_URL || new URL(req.url).origin;
   const section = new URL(req.url).searchParams.get('section') || undefined;
-  const items = listPublished({ section, limit: 40 });
+  const [s, items] = await Promise.all([getSettings(), listPublished({ section, limit: 40 })]);
   const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:media="http://search.yahoo.com/mrss/" xmlns:dc="http://purl.org/dc/elements/1.1/">
 <channel>

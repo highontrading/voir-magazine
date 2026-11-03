@@ -18,12 +18,12 @@ import { Popular } from '@/components/site/Popular';
 type Props = { params: Promise<{ slug: string }>; searchParams: Promise<{ preview?: string }> };
 
 async function load(slug: string, preview?: string): Promise<{ a: Article | null; isPreview: boolean }> {
-  const pub = getPublishedBySlug(slug);
+  const pub = await getPublishedBySlug(slug);
   if (pub) return { a: pub, isPreview: false };
   if (!preview) return { a: null, isPreview: false };
   const user = await currentUser();
   if (!user) return { a: null, isPreview: false };
-  const any = getArticleBySlugAny(slug);
+  const any = await getArticleBySlugAny(slug);
   // Writers may only preview their own stories; editors and admins can preview anything.
   if (!any || (!can(user, 'articles.all') && any.created_by !== user.id)) return { a: null, isPreview: false };
   return { a: any, isPreview: true };
@@ -71,12 +71,16 @@ export default async function StoryPage({ params, searchParams }: Props) {
   const { slug } = await params;
   const { a, isPreview } = await load(slug, (await searchParams).preview);
   if (!a) notFound();
-  const s = getSettings();
-  const reader = s.features.readerAccounts ? await currentReader() : null;
-  const saved = reader ? isSaved(reader.id, a.id) : false;
-  const related = relatedArticles(a, 4);
-  const more = a.section_id ? listPublished({ sectionId: a.section_id, limit: 4, exclude: [a.id, ...related.map((r) => r.id)] }) : [];
-  const popular = mostPopular(5, 30, [a.id]);
+  const s = await getSettings();
+  const [reader, related, popular] = await Promise.all([
+    s.features.readerAccounts ? currentReader() : null,
+    relatedArticles(a, 4),
+    mostPopular(5, 30, [a.id]),
+  ]);
+  const [saved, more] = await Promise.all([
+    reader ? isSaved(reader.id, a.id) : false,
+    a.section_id ? listPublished({ sectionId: a.section_id, limit: 4, exclude: [a.id, ...related.map((r) => r.id)] }) : [],
+  ]);
 
   const body = cleanHtml(a.body);
   const gated = s.features.paywallTeaser && !reader && a.type === 'feature';

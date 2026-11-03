@@ -11,15 +11,18 @@ import { VideoPlayer } from '@/components/site/VideoPlayer';
 type Props = { params: Promise<{ slug: string }> };
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const v = getVideo((await params).slug);
+  const v = await getVideo((await params).slug);
   return v ? { title: v.title, description: v.description, openGraph: { type: 'video.other', images: v.thumbnail ? [v.thumbnail] : undefined } } : { title: 'Video not found' };
 }
 
 export default async function VideoPage({ params }: Props) {
-  const v = getVideo((await params).slug);
+  const v = await getVideo((await params).slug);
   if (!v) notFound();
-  const sameSeries = v.series ? listVideos({ series: v.series, exclude: v.id, limit: 8 }) : [];
-  const more = listVideos({ exclude: v.id, limit: 8 }).filter((x) => !sameSeries.some((y) => y.id === x.id)).slice(0, 4);
+  const [sameSeries, latest] = await Promise.all([
+    v.series ? listVideos({ series: v.series, exclude: v.id, limit: 8 }) : [],
+    listVideos({ exclude: v.id, limit: 8 }),
+  ]);
+  const more = latest.filter((x) => !sameSeries.some((y) => y.id === x.id)).slice(0, 4);
   return (
     <div className="band-dark page-enter" style={{ marginBottom: -72, paddingBottom: 72 }}>
       <ViewTracker id={v.id} kind="video" />

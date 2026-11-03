@@ -14,11 +14,13 @@ export default async function NewslettersPage({ searchParams }: { searchParams: 
   await requireUser('audience.manage');
   const s = await searchParams;
   const tab = sp(s.tab) === 'subscribers' ? 'subscribers' : 'lists';
-  const lists = listNewsletters(false);
-  const totalSubs = lists.reduce((n, l) => n + (l.subscriber_count ?? 0), 0);
   const params = { tab, q: sp(s.q), list: sp(s.list), page: sp(s.page) };
   const page = Math.max(1, Number(params.page) || 1);
-  const subs = tab === 'subscribers' ? listSubscribers({ q: params.q || undefined, newsletterId: Number(params.list) || undefined, limit: PER, offset: (page - 1) * PER }) : null;
+  const [lists, subs] = await Promise.all([
+    listNewsletters(false),
+    tab === 'subscribers' ? listSubscribers({ q: params.q || undefined, newsletterId: Number(params.list) || undefined, limit: PER, offset: (page - 1) * PER }) : null,
+  ]);
+  const totalSubs = lists.reduce((n, l) => n + (l.subscriber_count ?? 0), 0);
   const exportHref = `/api/admin/export/subscribers?${new URLSearchParams({ ...(params.list ? { list: params.list } : {}), ...(params.q ? { q: params.q } : {}) })}`;
 
   return (

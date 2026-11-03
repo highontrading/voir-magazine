@@ -9,11 +9,11 @@ export const metadata = { title: 'Navigation' };
 
 export default async function NavigationPage() {
   await requireUser('site.layout');
-  const nav = allNav();
+  const [nav, sections, pages] = await Promise.all([allNav(), listSections(), listPages()]);
   const pick = (m: string) => nav.filter((n) => n.menu === m).map((n) => ({ label: n.label, url: n.url, new_tab: !!n.new_tab }));
   const suggestions = [
-    { group: 'Sections', items: listSections().map((s) => ({ label: s.name, url: `/${s.slug}` })) },
-    { group: 'Pages', items: listPages().map((p) => ({ label: p.title, url: `/${p.slug}` })) },
+    { group: 'Sections', items: sections.map((s) => ({ label: s.name, url: `/${s.slug}` })) },
+    { group: 'Pages', items: pages.map((p) => ({ label: p.title, url: `/${p.slug}` })) },
     {
       group: 'Site',
       items: [

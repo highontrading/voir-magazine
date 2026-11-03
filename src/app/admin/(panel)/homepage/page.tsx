@@ -12,10 +12,16 @@ export const metadata = { title: 'Homepage' };
 
 export default async function HomepagePage() {
   await requireUser('site.layout');
-  const s = getSettings();
-  const articles = articleOptions(true).map((a) => ({ value: String(a.id), label: a.title, meta: [a.section_name, formatDate(a.published_at, 'short')].filter(Boolean).join(' · ') }));
-  const autoHero = listPublished({ flag: 'featured', limit: 1 })[0];
-  const autoTop = listPublished({ flag: 'top_story', limit: 6 });
+  const [s, options, heroList, autoTop, sections, tags] = await Promise.all([
+    getSettings(),
+    articleOptions(true),
+    listPublished({ flag: 'featured', limit: 1 }),
+    listPublished({ flag: 'top_story', limit: 6 }),
+    listSections(),
+    adminTags(),
+  ]);
+  const articles = options.map((a) => ({ value: String(a.id), label: a.title, meta: [a.section_name, formatDate(a.published_at, 'short')].filter(Boolean).join(' · ') }));
+  const autoHero = heroList[0];
   return (
     <>
       <PageHeader
@@ -30,8 +36,8 @@ export default async function HomepagePage() {
       <HomepageBuilder
         initial={s.homepage}
         articles={articles}
-        sections={listSections().map((x) => ({ value: x.slug, label: x.name }))}
-        tags={adminTags().map((t) => ({ value: t.slug, label: t.name, meta: `${t.article_count ?? 0} stories` }))}
+        sections={sections.map((x) => ({ value: x.slug, label: x.name }))}
+        tags={tags.map((t) => ({ value: t.slug, label: t.name, meta: `${t.article_count ?? 0} stories` }))}
         autoHero={autoHero ? autoHero.title : null}
         autoTop={autoTop.map((a) => a.title)}
       />

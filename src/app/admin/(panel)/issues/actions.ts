@@ -16,7 +16,7 @@ export async function saveIssueAction(_p: ActionResult | null, fd: FormData): Pr
   if (!/^\d{4}-\d{2}$/.test(month)) errors.issue_month = 'Choose the issue month.';
   if (Object.keys(errors).length) return fail(Object.values(errors)[0]!, errors);
   try {
-    const iid = saveIssue(
+    const iid = await saveIssue(
       {
         title,
         slug: str(fd, 'slug', 90),
@@ -29,7 +29,7 @@ export async function saveIssueAction(_p: ActionResult | null, fd: FormData): Pr
       },
       id,
     );
-    logActivity(user.id, id ? 'updated' : 'created', 'issue', iid, title);
+    await logActivity(user.id, id ? 'updated' : 'created', 'issue', iid, title);
     revalidatePath('/', 'layout');
     return ok(id ? 'Issue saved.' : 'Issue created.', { redirect: '/admin/issues' });
   } catch (e) {
@@ -39,10 +39,10 @@ export async function saveIssueAction(_p: ActionResult | null, fd: FormData): Pr
 
 export async function deleteIssueAction(_p: ActionResult | null, fd: FormData): Promise<ActionResult> {
   const user = await requireUser('content.manage');
-  const i = getIssueById(int(fd, 'id'));
+  const i = await getIssueById(int(fd, 'id'));
   if (!i) return fail('Issue not found.');
-  deleteIssue(i.id);
-  logActivity(user.id, 'deleted', 'issue', null, i.title);
+  await deleteIssue(i.id);
+  await logActivity(user.id, 'deleted', 'issue', null, i.title);
   revalidatePath('/', 'layout');
   return ok(`Deleted “${i.title}”.`, { redirect: '/admin/issues' });
 }

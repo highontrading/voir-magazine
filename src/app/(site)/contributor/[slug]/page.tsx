@@ -10,15 +10,14 @@ import { Avatar } from '@/components/site/Media';
 type Props = { params: Promise<{ slug: string }> };
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const a = getAuthor((await params).slug);
+  const a = await getAuthor((await params).slug);
   return a ? { title: `${a.name}`, description: a.bio } : { title: 'Contributor not found' };
 }
 
 export default async function ContributorPage({ params }: Props) {
-  const author = getAuthor((await params).slug);
+  const author = await getAuthor((await params).slug);
   if (!author) notFound();
-  const total = countPublished({ author: author.slug });
-  const items = listPublished({ author: author.slug, limit: 12 });
+  const [total, items] = await Promise.all([countPublished({ author: author.slug }), listPublished({ author: author.slug, limit: 12 })]);
   return (
     <div className="wrap page-enter">
       <header className="profile-head">

@@ -11,8 +11,7 @@ export const metadata = { title: 'Podcasts' };
 
 export default async function PodcastsPage() {
   await requireUser('content.manage');
-  const shows = listPodcasts(false);
-  const totals = episodeCountsByPodcast();
+  const [shows, totals] = await Promise.all([listPodcasts(false), episodeCountsByPodcast()]);
   return (
     <>
       <PageHeader
@@ -54,7 +53,6 @@ export default async function PodcastsPage() {
                     <td>
                       <div className="adm-story-cell">
                         <div className="adm-thumb" style={{ width: 44, height: 44 }}>
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
                           {p.cover_image ? <img src={p.cover_image} alt="" /> : <Icon name="podcast" size={16} />}
                         </div>
                         <div>

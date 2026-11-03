@@ -13,9 +13,11 @@ export default async function ArchivePage({ searchParams }: { searchParams: Prom
   const sp = await searchParams;
   const page = clampInt(sp.page, 1, 1, 10_000);
   const section = sp.section || undefined;
-  const total = countPublished({ section });
-  const items = listPublished({ section, limit: PER, offset: (page - 1) * PER });
-  const sections = listSections();
+  const [total, items, sections] = await Promise.all([
+    countPublished({ section }),
+    listPublished({ section, limit: PER, offset: (page - 1) * PER }),
+    listSections(),
+  ]);
   const groups = new Map<string, typeof items>();
   for (const a of items) {
     const k = formatDate(a.published_at, 'month');

@@ -17,10 +17,13 @@ export default async function MessagesPage({ searchParams }: { searchParams: Sea
   const s = await searchParams;
   const params = { filter: sp(s.filter), q: sp(s.q), page: sp(s.page) };
   const openId = Number(sp(s.open)) || 0;
-  const data = messagesPage({ unread: params.filter === 'unread', q: params.q || undefined, page: Number(params.page) || 1, perPage: 25 });
-  const open = openId ? getMessage(openId) : null;
-  const unread = unreadMessageCount();
-  const site = getSettings().siteName;
+  const [data, open, unread, settings] = await Promise.all([
+    messagesPage({ unread: params.filter === 'unread', q: params.q || undefined, page: Number(params.page) || 1, perPage: 25 }),
+    openId ? getMessage(openId) : null,
+    unreadMessageCount(),
+    getSettings(),
+  ]);
+  const site = settings.siteName;
   const back = hrefWith('/admin/messages', params, {});
   return (
     <>

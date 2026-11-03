@@ -53,9 +53,9 @@ export async function saveSettingsAction(input: EditableSettings): Promise<Actio
     contactEmail: t(input.contactEmail, 200),
     address: t(input.address, 300),
   };
-  saveSettings(clean);
-  logActivity(user.id, 'updated', 'settings', null, 'site settings');
+  await saveSettings(clean);
+  await logActivity(user.id, 'updated', 'settings', null, 'site settings');
   revalidatePath('/', 'layout');
-  const { homepage: _h, ...rest } = getSettings();
+  const { homepage: _h, ...rest } = await getSettings();
   return ok('Settings saved.', { data: { settings: rest } });
 }

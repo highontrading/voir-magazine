@@ -12,17 +12,20 @@ import { Cover } from '@/components/site/Cover';
 type Props = { params: Promise<{ slug: string }> };
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const i = getIssue((await params).slug);
+  const i = await getIssue((await params).slug);
   return i && i.published ? { title: `${i.title} — ${formatDate(i.issue_date, 'month')}`, description: i.description } : { title: 'Issue not found' };
 }
 
 export default async function IssuePage({ params }: Props) {
-  const issue = getIssue((await params).slug);
+  const issue = await getIssue((await params).slug);
   if (!issue || !issue.published) notFound();
-  const s = getSettings();
-  const cover = issue.cover_story_id ? getArticlesByIds([issue.cover_story_id])[0] : null;
-  const stories = listPublished({ issueId: issue.id, limit: 30, exclude: cover ? [cover.id] : [] });
-  const others = listIssues().filter((i) => i.id !== issue.id).slice(0, 4);
+  const [s, cover, issues] = await Promise.all([
+    getSettings(),
+    issue.cover_story_id ? getArticlesByIds([issue.cover_story_id]).then((r) => r[0]) : null,
+    listIssues(),
+  ]);
+  const stories = await listPublished({ issueId: issue.id, limit: 30, exclude: cover ? [cover.id] : [] });
+  const others = issues.filter((i) => i.id !== issue.id).slice(0, 4);
   return (
     <div className="page-enter">
       <section className="band-soft">

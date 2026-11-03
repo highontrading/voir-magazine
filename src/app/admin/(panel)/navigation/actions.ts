@@ -17,8 +17,8 @@ export async function saveMenuAction(menu: MenuName, items: { label: string; url
   if (bad >= 0) return fail(`Item ${bad + 1} needs both a label and a link.`);
   const badUrl = clean.find((i) => i.url && !isUrlish(i.url));
   if (badUrl) return fail(`“${badUrl.url}” isn’t a valid link. Use /path or https://…`);
-  replaceMenu(menu, clean.filter((i) => i.label && i.url));
-  logActivity(user.id, 'updated', 'menu', null, menu);
+  await replaceMenu(menu, clean.filter((i) => i.label && i.url));
+  await logActivity(user.id, 'updated', 'menu', null, menu);
   revalidatePath('/', 'layout');
-  return ok('Menu saved.', { data: { items: listNav(menu).map((n) => ({ label: n.label, url: n.url, new_tab: !!n.new_tab })) } });
+  return ok('Menu saved.', { data: { items: (await listNav(menu)).map((n) => ({ label: n.label, url: n.url, new_tab: !!n.new_tab })) } });
 }

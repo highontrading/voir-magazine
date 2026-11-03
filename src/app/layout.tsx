@@ -5,7 +5,7 @@ import './globals.css';
 export const dynamic = 'force-dynamic';
 
 export async function generateMetadata(): Promise<Metadata> {
-  const s = getSettings();
+  const s = await getSettings();
   return {
     metadataBase: new URL(process.env.SITE_URL || 'http://localhost:3000'),
     title: { default: s.seo.defaultTitle, template: `%s | ${s.siteName}` },
@@ -19,8 +19,8 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export const viewport: Viewport = { themeColor: '#ffffff', width: 'device-width', initialScale: 1 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
-  const s = getSettings();
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const s = await getSettings();
   const vars = `:root{--accent:${s.accentColor};--ink:${s.inkColor};--paper:${s.paperColor};}`;
   return (
     <html lang="en">

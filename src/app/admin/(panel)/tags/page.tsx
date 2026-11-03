@@ -14,10 +14,10 @@ export default async function TagsPage({ searchParams }: { searchParams: SearchP
   const s = await searchParams;
   const q = sp(s.q);
   const page = Math.max(1, Number(sp(s.page)) || 1);
-  const all = adminTags(q || undefined);
+  const all = await adminTags(q || undefined);
   const pages = Math.max(1, Math.ceil(all.length / PER));
   const rows = all.slice((page - 1) * PER, page * PER);
-  const options = (q ? adminTags() : all).map((t) => ({ id: t.id, name: t.name }));
+  const options = (q ? await adminTags() : all).map((t) => ({ id: t.id, name: t.name }));
   return (
     <>
       <PageHeader title="Tags" subtitle="Topics that connect stories across sections. Merge duplicates to keep tag pages tidy." />

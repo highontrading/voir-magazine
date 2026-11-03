@@ -13,7 +13,7 @@ export const metadata = { title: 'Edit newsletter' };
 export default async function NewsletterEdit({ params }: { params: Promise<{ id: string }> }) {
   await requireUser('audience.manage');
   const { id } = await params;
-  const n = id === 'new' ? null : getNewsletterById(Number(id));
+  const n = id === 'new' ? null : await getNewsletterById(Number(id));
   if (id !== 'new' && !n) notFound();
   return (
     <>

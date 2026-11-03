@@ -13,7 +13,7 @@ export const metadata = { title: 'Edit page' };
 export default async function PageEdit({ params }: { params: Promise<{ id: string }> }) {
   await requireUser('content.manage');
   const { id } = await params;
-  const p = id === 'new' ? null : getPageById(Number(id));
+  const p = id === 'new' ? null : await getPageById(Number(id));
   if (id !== 'new' && !p) notFound();
   return (
     <>

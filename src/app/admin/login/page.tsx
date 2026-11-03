@@ -8,7 +8,7 @@ export const metadata = { title: 'Sign in' };
 export default async function LoginPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   if (await currentUser()) redirect('/admin');
   const { next } = await searchParams;
-  const s = getSettings();
+  const s = await getSettings();
   return (
     <div className="adm-login">
       <div className="adm-login-art" aria-hidden="true">

@@ -12,7 +12,7 @@ export async function GET(req: Request) {
   if (!can(user, 'audience.manage')) return new Response('Forbidden', { status: 403 });
   const u = new URL(req.url);
   const list = parseInt(u.searchParams.get('list') || '', 10);
-  const rows = allSubscribers(Number.isFinite(list) && list > 0 ? list : undefined, u.searchParams.get('q') || undefined);
+  const rows = await allSubscribers(Number.isFinite(list) && list > 0 ? list : undefined, u.searchParams.get('q') || undefined);
   const lines = [['email', 'newsletter', 'source', 'subscribed_at'].join(',')];
   for (const r of rows) lines.push([r.email, r.newsletter_name ?? '', r.source, r.created_at].map(csvCell).join(','));
   const stamp = new Date().toISOString().slice(0, 10);

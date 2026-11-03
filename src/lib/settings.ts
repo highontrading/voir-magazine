@@ -1,5 +1,6 @@
 import 'server-only';
-import { all, run } from './db';
+import { cache } from 'react';
+import { all, batch } from './db';
 import type { SiteSettings } from './types';
 
 export const DEFAULT_SETTINGS: SiteSettings = {
@@ -99,8 +100,9 @@ function merge<T>(base: T, over: unknown): T {
   return out as T;
 }
 
-export function getSettings(): SiteSettings {
-  const rows = all<{ key: string; value: string }>('SELECT key, value FROM settings');
+/** Cached per request: every caller during one render shares a single settings query. */
+export const getSettings = cache(async (): Promise<SiteSettings> => {
+  const rows = await all<{ key: string; value: string }>('SELECT key, value FROM settings');
   const stored: Record<string, unknown> = {};
   for (const r of rows) {
     try {
@@ -110,14 +112,13 @@ export function getSettings(): SiteSettings {
     }
   }
   return merge(DEFAULT_SETTINGS, stored);
-}
+});
 
-export function saveSettings(patch: Partial<SiteSettings>) {
-  for (const [k, v] of Object.entries(patch)) {
-    run(
-      'INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value',
-      k,
-      JSON.stringify(v),
-    );
-  }
+export async function saveSettings(patch: Partial<SiteSettings>): Promise<void> {
+  await batch(
+    Object.entries(patch).map(([k, v]) => ({
+      sql: 'INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value',
+      args: [k, JSON.stringify(v)],
+    })),
+  );
 }

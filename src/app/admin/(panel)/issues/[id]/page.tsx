@@ -15,9 +15,9 @@ export const metadata = { title: 'Edit issue' };
 export default async function IssueEdit({ params }: { params: Promise<{ id: string }> }) {
   await requireUser('content.manage');
   const { id } = await params;
-  const i = id === 'new' ? null : getIssueById(Number(id));
+  const [i, articles] = await Promise.all([id === 'new' ? null : getIssueById(Number(id)), articleOptions()]);
   if (id !== 'new' && !i) notFound();
-  const options = articleOptions().map((a) => ({ value: String(a.id), label: a.title, meta: [a.section_name, a.status !== 'published' ? a.status : formatDate(a.published_at, 'short')].filter(Boolean).join(' · ') }));
+  const options = articles.map((a) => ({ value: String(a.id), label: a.title, meta: [a.section_name, a.status !== 'published' ? a.status : formatDate(a.published_at, 'short')].filter(Boolean).join(' · ') }));
   const nextMonth = new Date();
   nextMonth.setUTCMonth(nextMonth.getUTCMonth() + 1);
   return (

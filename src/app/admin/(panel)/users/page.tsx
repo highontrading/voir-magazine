@@ -12,8 +12,11 @@ export const metadata = { title: 'Users' };
 
 export default async function UsersPage() {
   const me = await requireUser('users.manage');
-  const users = listUsers();
-  const counts = Object.fromEntries(all<{ created_by: number; n: number }>('SELECT created_by, COUNT(*) AS n FROM articles WHERE created_by IS NOT NULL GROUP BY created_by').map((r) => [r.created_by, r.n]));
+  const [users, totals] = await Promise.all([
+    listUsers(),
+    all<{ created_by: number; n: number }>('SELECT created_by, COUNT(*) AS n FROM articles WHERE created_by IS NOT NULL GROUP BY created_by'),
+  ]);
+  const counts = Object.fromEntries(totals.map((r) => [r.created_by, r.n]));
   return (
     <>
       <PageHeader

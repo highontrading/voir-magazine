@@ -19,7 +19,8 @@ export async function savePodcastAction(_p: ActionResult | null, fd: FormData): 
   if (!isUrlish(spotify)) errors.spotify_url = 'Use a full https:// link.';
   if (Object.keys(errors).length) return fail(Object.values(errors)[0]!, errors);
   try {
-    const pid = savePodcast(
+    const position = str(fd, 'position') === '' ? (id ? (await getPodcastById(id))?.position ?? 0 : await nextPosition('podcasts')) : int(fd, 'position');
+    const pid = await savePodcast(
       {
         title,
         slug: str(fd, 'slug', 90),
@@ -28,12 +29,12 @@ export async function savePodcastAction(_p: ActionResult | null, fd: FormData): 
         cover_image: str(fd, 'cover_image', 1000),
         apple_url: apple,
         spotify_url: spotify,
-        position: str(fd, 'position') === '' ? (id ? getPodcastById(id)?.position ?? 0 : nextPosition('podcasts')) : int(fd, 'position'),
+        position,
         active: bool(fd, 'active') ? 1 : 0,
       },
       id,
     );
-    logActivity(user.id, id ? 'updated' : 'created', 'podcast', pid, title);
+    await logActivity(user.id, id ? 'updated' : 'created', 'podcast', pid, title);
     revalidatePath('/', 'layout');
     return ok(id ? 'Show saved.' : 'Show created — now add episodes.', { redirect: id ? undefined : `/admin/podcasts/${pid}` });
   } catch (e) {
@@ -43,17 +44,17 @@ export async function savePodcastAction(_p: ActionResult | null, fd: FormData): 
 
 export async function deletePodcastAction(_p: ActionResult | null, fd: FormData): Promise<ActionResult> {
   const user = await requireUser('content.manage');
-  const p = getPodcastById(int(fd, 'id'));
+  const p = await getPodcastById(int(fd, 'id'));
   if (!p) return fail('Show not found.');
-  deletePodcast(p.id);
-  logActivity(user.id, 'deleted', 'podcast', null, p.title);
+  await deletePodcast(p.id);
+  await logActivity(user.id, 'deleted', 'podcast', null, p.title);
   revalidatePath('/', 'layout');
   return ok(`Deleted “${p.title}” and its episodes.`, { redirect: '/admin/podcasts' });
 }
 
 export async function movePodcastAction(_p: ActionResult | null, fd: FormData): Promise<ActionResult> {
   await requireUser('content.manage');
-  if (!moveRow('podcasts', int(fd, 'id'), int(fd, 'dir') < 0 ? -1 : 1)) return fail('Can’t move further.');
+  if (!(await moveRow('podcasts', int(fd, 'id'), int(fd, 'dir') < 0 ? -1 : 1))) return fail('Can’t move further.');
   revalidatePath('/', 'layout');
   return ok();
 }
@@ -62,7 +63,7 @@ export async function saveEpisodeAction(_p: ActionResult | null, fd: FormData): 
   const user = await requireUser('content.manage');
   const id = int(fd, 'id') || undefined;
   const podcastId = int(fd, 'podcast_id');
-  if (!getPodcastById(podcastId)) return fail('Show not found.');
+  if (!(await getPodcastById(podcastId))) return fail('Show not found.');
   const title = str(fd, 'title', 300);
   const audio = str(fd, 'audio_url', 1000);
   const duration = str(fd, 'duration', 12);
@@ -74,7 +75,7 @@ export async function saveEpisodeAction(_p: ActionResult | null, fd: FormData): 
   if (Object.keys(errors).length) return fail(Object.values(errors)[0]!, errors);
   const status = str(fd, 'status') === 'draft' ? 'draft' : 'published';
   try {
-    const eid = saveEpisode(
+    const eid = await saveEpisode(
       {
         podcast_id: podcastId,
         title,
@@ -88,7 +89,7 @@ export async function saveEpisodeAction(_p: ActionResult | null, fd: FormData): 
       },
       id,
     );
-    logActivity(user.id, id ? 'updated' : status === 'published' ? 'published' : 'created', 'episode', eid, title);
+    await logActivity(user.id, id ? 'updated' : status === 'published' ? 'published' : 'created', 'episode', eid, title);
     revalidatePath('/', 'layout');
     return ok(id ? 'Episode saved.' : 'Episode added.', { redirect: `/admin/podcasts/${podcastId}` });
   } catch (e) {
@@ -98,10 +99,10 @@ export async function saveEpisodeAction(_p: ActionResult | null, fd: FormData): 
 
 export async function deleteEpisodeAction(_p: ActionResult | null, fd: FormData): Promise<ActionResult> {
   const user = await requireUser('content.manage');
-  const e = getEpisodeById(int(fd, 'id'));
+  const e = await getEpisodeById(int(fd, 'id'));
   if (!e) return fail('Episode not found.');
-  deleteEpisode(e.id);
-  logActivity(user.id, 'deleted', 'episode', null, e.title);
+  await deleteEpisode(e.id);
+  await logActivity(user.id, 'deleted', 'episode', null, e.title);
   revalidatePath('/', 'layout');
   return ok(`Deleted “${e.title}”.`, { redirect: `/admin/podcasts/${e.podcast_id}` });
 }

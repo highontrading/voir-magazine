@@ -5,14 +5,14 @@ import { listAuthors } from '@/lib/data/taxonomy';
 import { cleanHtml } from '@/lib/html';
 import { Avatar } from '@/components/site/Media';
 
-export function generateMetadata(): Metadata {
-  const page = getPage('masthead');
+export async function generateMetadata(): Promise<Metadata> {
+  const page = await getPage('masthead');
   return { title: page?.title || 'Masthead', description: page?.seo_description || page?.intro || undefined };
 }
 
-export default function MastheadPage() {
-  const page = getPage('masthead');
-  const people = listAuthors().filter((a) => a.on_masthead);
+export default async function MastheadPage() {
+  const [page, authors] = await Promise.all([getPage('masthead'), listAuthors()]);
+  const people = authors.filter((a) => a.on_masthead);
   return (
     <div className="page-enter">
       <header className="page-head">

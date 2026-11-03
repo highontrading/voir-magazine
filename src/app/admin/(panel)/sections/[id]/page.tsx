@@ -13,7 +13,7 @@ export const metadata = { title: 'Edit section' };
 export default async function SectionEdit({ params }: { params: Promise<{ id: string }> }) {
   await requireUser('content.manage');
   const { id } = await params;
-  const s = id === 'new' ? null : getSectionById(Number(id));
+  const s = id === 'new' ? null : await getSectionById(Number(id));
   if (id !== 'new' && !s) notFound();
   return (
     <>

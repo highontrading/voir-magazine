@@ -5,7 +5,7 @@ import { requireUser, can } from '@/lib/auth';
 import type { User, ArticleStatus } from '@/lib/types';
 import { deleteArticles, duplicateArticle, getArticleById, saveArticle, setArticleStatus } from '@/lib/data/articles';
 import { articleOwner } from '@/lib/data/admin';
-import { logActivity } from '@/lib/data/site';
+import { logActivities, logActivity } from '@/lib/data/site';
 import { dbError, fail, ids, ok, str, type ActionResult } from '@/lib/admin/form';
 import { ARTICLE_STATUSES, ARTICLE_TYPES, HERO_LAYOUTS, type ArticlePayload } from '@/lib/admin/article';
 import { slugify } from '@/lib/utils';
@@ -21,7 +21,7 @@ function canTouch(user: User, a: { created_by: number | null; status: ArticleSta
 export async function saveArticleAction(p: ArticlePayload): Promise<ActionResult> {
   const user = await requireUser();
   const publisher = can(user, 'articles.publish');
-  const existing = p.id ? getArticleById(p.id) : null;
+  const existing = p.id ? await getArticleById(p.id) : null;
   if (p.id && !existing) return fail('This story no longer exists.');
   if (existing && !canTouch(user, existing)) {
     return fail(LIVE.includes(existing.status) ? 'This story is live — ask an editor to make changes.' : 'You can only edit your own stories.');
@@ -53,7 +53,7 @@ export async function saveArticleAction(p: ArticlePayload): Promise<ActionResult
   if (Object.keys(errors).length) return fail(Object.values(errors)[0]!, errors);
 
   try {
-    const id = saveArticle(
+    const id = await saveArticle(
       {
         title,
         slug: slugify(p.slug || title),
@@ -81,7 +81,7 @@ export async function saveArticleAction(p: ArticlePayload): Promise<ActionResult
       p.id ?? undefined,
       user.id,
     );
-    const saved = getArticleById(id)!;
+    const saved = (await getArticleById(id))!;
     const wasLive = existing && (existing.status === 'published' || existing.status === 'scheduled');
     const action = !existing
       ? status === 'published'
@@ -98,7 +98,7 @@ export async function saveArticleAction(p: ArticlePayload): Promise<ActionResult
           : status === 'review' && existing.status !== 'review'
             ? 'submitted for review'
             : 'updated';
-    logActivity(user.id, action, 'article', id, title);
+    await logActivity(user.id, action, 'article', id, title);
     revalidatePath('/', 'layout');
     const msg =
       status === 'published'
@@ -123,7 +123,7 @@ export async function bulkArticlesAction(_prev: ActionResult | null, fd: FormDat
   const intent = str(fd, 'intent');
   const list = ids(fd, 'ids');
   if (!list.length) return fail('Select at least one story.');
-  const rows = list.map(articleOwner).filter((r): r is NonNullable<typeof r> => !!r);
+  const rows = (await Promise.all(list.map((id) => articleOwner(id)))).filter((r): r is NonNullable<typeof r> => !!r);
   const allowed = rows.filter((r) => canTouch(user, r));
   if (!allowed.length) return fail('You don’t have permission to change the selected stories.');
   const target = allowed.map((r) => r.id);
@@ -134,31 +134,31 @@ export async function bulkArticlesAction(_prev: ActionResult | null, fd: FormDat
   switch (intent) {
     case 'publish':
       if (!can(user, 'articles.publish')) return fail('You can’t publish stories.');
-      setArticleStatus(target, 'published');
+      await setArticleStatus(target, 'published');
       msg = `Published ${noun}.`;
       break;
     case 'draft':
-      setArticleStatus(target, 'draft');
+      await setArticleStatus(target, 'draft');
       msg = `Moved ${noun} to drafts.`;
       break;
     case 'review':
-      setArticleStatus(target, 'review');
+      await setArticleStatus(target, 'review');
       msg = `Submitted ${noun} for review.`;
       break;
     case 'archive':
       if (!can(user, 'articles.publish')) return fail('You can’t archive stories.');
-      setArticleStatus(target, 'archived');
+      await setArticleStatus(target, 'archived');
       msg = `Archived ${noun}.`;
       break;
     case 'delete':
-      deleteArticles(target);
+      await deleteArticles(target);
       msg = `Deleted ${noun}.`;
       break;
     default:
       return fail('Unknown action.');
   }
   const verb = { publish: 'published', draft: 'moved to draft', review: 'submitted for review', archive: 'archived', delete: 'deleted' }[intent]!;
-  for (const r of allowed) logActivity(user.id, verb, 'article', intent === 'delete' ? null : r.id, r.title);
+  await logActivities(allowed.map((r) => ({ userId: user.id, action: verb, entity: 'article', entityId: intent === 'delete' ? null : r.id, label: r.title })));
   revalidatePath('/', 'layout');
   return ok(msg + (skipped ? ` ${skipped} skipped (no permission).` : ''), { data: { cleared: true } });
 }
@@ -166,11 +166,11 @@ export async function bulkArticlesAction(_prev: ActionResult | null, fd: FormDat
 export async function deleteArticleAction(_prev: ActionResult | null, fd: FormData): Promise<ActionResult> {
   const user = await requireUser();
   const id = Number(fd.get('id'));
-  const row = articleOwner(id);
+  const row = await articleOwner(id);
   if (!row) return fail('Story not found.');
   if (!canTouch(user, row)) return fail('You don’t have permission to delete this story.');
-  deleteArticles([id]);
-  logActivity(user.id, 'deleted', 'article', null, row.title);
+  await deleteArticles([id]);
+  await logActivity(user.id, 'deleted', 'article', null, row.title);
   revalidatePath('/', 'layout');
   return ok('Story deleted.', { redirect: str(fd, 'redirect') || undefined });
 }
@@ -178,12 +178,12 @@ export async function deleteArticleAction(_prev: ActionResult | null, fd: FormDa
 export async function duplicateArticleAction(_prev: ActionResult | null, fd: FormData): Promise<ActionResult> {
   const user = await requireUser();
   const id = Number(fd.get('id'));
-  const row = articleOwner(id);
+  const row = await articleOwner(id);
   if (!row) return fail('Story not found.');
   if (!can(user, 'articles.all') && row.created_by !== user.id) return fail('You can only duplicate your own stories.');
-  const newId = duplicateArticle(id, user.id);
+  const newId = await duplicateArticle(id, user.id);
   if (!newId) return fail('Could not duplicate.');
-  logActivity(user.id, 'duplicated', 'article', newId, row.title);
+  await logActivity(user.id, 'duplicated', 'article', newId, row.title);
   revalidatePath('/admin/articles');
   return ok('Copy created as a draft.', { redirect: `/admin/articles/${newId}` });
 }

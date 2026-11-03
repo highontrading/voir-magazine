@@ -23,8 +23,12 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
   if (!reader) redirect('/account/sign-in?next=/account');
   const sp = await searchParams;
   const tab = TABS.some(([k]) => k === sp.tab) ? sp.tab! : 'saved';
-  const saved = tab === 'saved' ? getArticlesByIds(savedArticleIds(reader.id)) : [];
-  const sub = readerSubscription(reader.id, reader.email);
+  const [saved, sub, newsletters, selected] = await Promise.all([
+    tab === 'saved' ? savedArticleIds(reader.id).then((ids) => getArticlesByIds(ids)) : [],
+    readerSubscription(reader.id, reader.email),
+    tab === 'newsletters' ? listNewsletters() : [],
+    tab === 'newsletters' ? readerNewsletterIds(reader.email) : [],
+  ]);
   return (
     <div className="wrap page-enter">
       <header className="page-head page-head--left" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', gap: 20, flexWrap: 'wrap', borderBottom: 0, marginBottom: 0 }}>
@@ -60,7 +64,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
           </div>
         )
       ) : null}
-      {tab === 'newsletters' ? <NewsletterPrefsForm items={listNewsletters()} selected={readerNewsletterIds(reader.email)} /> : null}
+      {tab === 'newsletters' ? <NewsletterPrefsForm items={newsletters} selected={selected} /> : null}
       {tab === 'subscription' ? (
         sub ? (
           <div className="rail-box" style={{ maxWidth: 560 }}>

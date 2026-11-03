@@ -22,10 +22,9 @@ function VideoCard({ v }: { v: Video }) {
   );
 }
 
-export default function VideoHub() {
-  const all = listVideos({ limit: 100 });
+export default async function VideoHub() {
+  const [all, series] = await Promise.all([listVideos({ limit: 100 }), videoSeries()]);
   const featured = all[0];
-  const series = videoSeries();
   return (
     <div className="band-dark page-enter" style={{ marginBottom: -72, paddingBottom: 72 }}>
       <div className="wrap">

@@ -16,7 +16,7 @@ export default async function ReadersPage({ searchParams }: { searchParams: Sear
   const q = sp(s.q);
   const filter = sp(s.filter);
   const page = Math.max(1, Number(sp(s.page)) || 1);
-  const everyone = listReaders(q || undefined);
+  const everyone = await listReaders(q || undefined);
   const list = filter === 'inactive' ? everyone.filter((r) => !r.active) : filter === 'active' ? everyone.filter((r) => r.active) : everyone;
   const rows = list.slice((page - 1) * PER, page * PER);
   return (

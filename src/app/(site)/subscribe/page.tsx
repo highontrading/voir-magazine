@@ -16,10 +16,8 @@ const FAQ: [string, string][] = [
 ];
 
 export default async function SubscribePage() {
-  const s = getSettings();
-  const plans = listPlans();
-  const covers = listIssues().slice(0, 3);
-  const reader = await currentReader();
+  const [s, plans, issues, reader] = await Promise.all([getSettings(), listPlans(), listIssues(), currentReader()]);
+  const covers = issues.slice(0, 3);
   return (
     <div className="page-enter">
       <section className="sub-hero">

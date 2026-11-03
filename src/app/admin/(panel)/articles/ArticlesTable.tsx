@@ -107,7 +107,6 @@ export function ArticlesTable({ rows, canPublish }: { rows: ArticleRowLite[]; ca
                 <td>
                   <div className="adm-story-cell">
                     <div className="adm-thumb">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
                       {r.hero_image ? <img src={r.hero_image} alt="" loading="lazy" /> : <Icon name="image" size={16} />}
                     </div>
                     <div>

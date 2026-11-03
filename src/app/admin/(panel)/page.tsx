@@ -20,18 +20,20 @@ export default async function Dashboard({ searchParams }: { searchParams: Search
   const user = await requireUser();
   const denied = sp((await searchParams).denied) === '1';
   const isWriter = !can(user, 'articles.all');
-  const stats = dashboardStats();
-  const mine = statusCounts(isWriter ? user.id : undefined);
-  const views = viewsByDay(30);
+  const [stats, mine, views, queue, scheduled, top, messages, activity] = await Promise.all([
+    dashboardStats(),
+    statusCounts(isWriter ? user.id : undefined),
+    viewsByDay(30),
+    articleQueue(['review', 'draft'], 8, isWriter ? user.id : undefined),
+    isWriter ? [] : scheduledArticles(6),
+    topArticles(8),
+    can(user, 'audience.manage') ? listMessages().then((m) => m.slice(0, 5)) : [],
+    can(user, 'content.manage') ? recentActivity(10) : [],
+  ]);
   const views30 = views.reduce((s, d) => s + d.views, 0);
   const prev7 = views.slice(-14, -7).reduce((s, d) => s + d.views, 0);
   const last7 = views.slice(-7).reduce((s, d) => s + d.views, 0);
   const trend = prev7 ? Math.round(((last7 - prev7) / prev7) * 100) : 0;
-  const queue = articleQueue(['review', 'draft'], 8, isWriter ? user.id : undefined);
-  const scheduled = isWriter ? [] : scheduledArticles(6);
-  const top = topArticles(8);
-  const messages = can(user, 'audience.manage') ? listMessages().slice(0, 5) : [];
-  const activity = can(user, 'content.manage') ? recentActivity(10) : [];
 
   const cards = isWriter
     ? [

@@ -15,16 +15,15 @@ type Props = { params: Promise<{ slug: string }> };
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
-  const section = getSection(slug);
+  const [section, page] = await Promise.all([getSection(slug), getPage(slug)]);
   if (section) return { title: section.seo_title || section.name, description: section.seo_description || section.description, alternates: { canonical: `/${slug}` } };
-  const page = getPage(slug);
   if (page) return { title: page.title, description: page.seo_description || page.intro };
   return { title: 'Not found' };
 }
 
 export default async function SlugPage({ params }: Props) {
   const { slug } = await params;
-  const section = getSection(slug);
+  const [section, page] = await Promise.all([getSection(slug), getPage(slug)]);
   if (section)
     return (
       <SectionView
@@ -36,7 +35,6 @@ export default async function SlugPage({ params }: Props) {
         color={section.color}
       />
     );
-  const page = getPage(slug);
   if (!page) notFound();
   return (
     <div className="page-enter">
@@ -57,7 +55,7 @@ export default async function SlugPage({ params }: Props) {
 /** Only accept plain hex colours so a stored value can never break out of the style attribute. */
 const HEX = /^#(?:[0-9a-f]{3}|[0-9a-f]{4}|[0-9a-f]{6}|[0-9a-f]{8})$/i;
 
-function SectionView({
+async function SectionView({
   id,
   slug,
   name,
@@ -73,10 +71,12 @@ function SectionView({
   color?: string | null;
 }) {
   const accent = color && HEX.test(color.trim()) ? color.trim() : null;
-  const total = countPublished({ sectionId: id });
-  const items = listPublished({ sectionId: id, limit: 15 });
-  const tags = sectionTags(id);
-  const videos = listVideos({ section: slug, limit: 4 });
+  const [total, items, tags, videos] = await Promise.all([
+    countPublished({ sectionId: id }),
+    listPublished({ sectionId: id, limit: 15 }),
+    sectionTags(id),
+    listVideos({ section: slug, limit: 4 }),
+  ]);
   const [lead, s1, s2, ...rest] = items;
   return (
     <div className="page-enter" style={accent ? ({ '--accent': accent } as CSSProperties) : undefined}>

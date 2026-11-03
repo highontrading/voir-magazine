@@ -15,9 +15,9 @@ export const metadata = { title: 'Podcast' };
 export default async function PodcastEdit({ params }: { params: Promise<{ id: string }> }) {
   await requireUser('content.manage');
   const { id } = await params;
-  const p = id === 'new' ? null : getPodcastById(Number(id));
+  const p = id === 'new' ? null : await getPodcastById(Number(id));
   if (id !== 'new' && !p) notFound();
-  const episodes = p ? listEpisodes(p.id, false, 1000) : [];
+  const episodes = p ? await listEpisodes(p.id, false, 1000) : [];
   const now = new Date().toISOString();
   return (
     <>

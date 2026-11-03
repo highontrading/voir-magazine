@@ -126,7 +126,6 @@ export function SettingsForm({ initial }: { initial: EditableSettings }) {
                   <div className="adm-theme-preview">
                     <div className="adm-theme-preview-bar" style={{ background: s.paperColor, color: s.inkColor, justifyContent: 'center', fontSize: 22 }}>
                       {s.logoImage ? (
-                        // eslint-disable-next-line @next/next/no-img-element
                         <img src={s.logoImage} alt="" style={{ maxHeight: 32 }} />
                       ) : (
                         s.logoText || s.siteName.toUpperCase()

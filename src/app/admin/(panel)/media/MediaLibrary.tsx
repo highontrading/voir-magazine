@@ -42,7 +42,7 @@ export function MediaLibrary({ items, userId, canManageAll, filtered }: { items:
       e.preventDefault();
       depth = 0;
       setDrag(false);
-      if (e.dataTransfer?.files.length && !document.querySelector('.adm-modal')) upload(e.dataTransfer.files);
+      if (e.dataTransfer?.files.length && !document.querySelector('.adm-modal')) void upload(e.dataTransfer.files);
     };
     window.addEventListener('dragenter', enter);
     window.addEventListener('dragleave', leave);
@@ -54,7 +54,6 @@ export function MediaLibrary({ items, userId, canManageAll, filtered }: { items:
       window.removeEventListener('dragover', over);
       window.removeEventListener('drop', drop);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function upload(files: FileList | File[]) {
@@ -124,7 +123,7 @@ export function MediaLibrary({ items, userId, canManageAll, filtered }: { items:
           hidden
           accept={ACCEPT.any}
           onChange={(e) => {
-            if (e.target.files) upload(e.target.files);
+            if (e.target.files) void upload(e.target.files);
             e.target.value = '';
           }}
         />

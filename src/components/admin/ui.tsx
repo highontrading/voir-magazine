@@ -116,7 +116,6 @@ export function Avatar({ name, src, size = 32 }: { name: string; src?: string | 
     .join('');
   return (
     <span className="adm-avatar" style={{ width: size, height: size, fontSize: size * 0.38 }}>
-      {/* eslint-disable-next-line @next/next/no-img-element */}
       {src ? <img src={src} alt="" /> : ini}
     </span>
   );

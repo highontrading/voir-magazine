@@ -9,16 +9,15 @@ import { LoadMore } from '@/components/site/LoadMore';
 type Props = { params: Promise<{ slug: string }> };
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const t = getTag((await params).slug);
+  const t = await getTag((await params).slug);
   return t ? { title: t.name, description: t.description || `The latest stories about ${t.name}.` } : { title: 'Topic not found' };
 }
 
 export default async function TagPage({ params }: Props) {
-  const tag = getTag((await params).slug);
+  const tag = await getTag((await params).slug);
   if (!tag) notFound();
-  const total = countPublished({ tag: tag.slug });
-  const items = listPublished({ tag: tag.slug, limit: 12 });
-  const others = popularTags(14).filter((t) => t.id !== tag.id);
+  const [total, items, popular] = await Promise.all([countPublished({ tag: tag.slug }), listPublished({ tag: tag.slug, limit: 12 }), popularTags(14)]);
+  const others = popular.filter((t) => t.id !== tag.id);
   const [lead, ...rest] = items;
   return (
     <div className="page-enter">

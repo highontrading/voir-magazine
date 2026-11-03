@@ -31,16 +31,16 @@ export async function saveHomepageAction(input: SiteSettings['homepage']): Promi
   const top = [...new Set((input.topStoryIds ?? []).map(Number).filter((n) => Number.isInteger(n) && n > 0))].slice(0, 6);
   const hero = input.heroArticleId ? Number(input.heroArticleId) || null : null;
   const homepage = { heroArticleId: hero, topStoryIds: top, blocks };
-  saveSettings({ homepage });
-  logActivity(user.id, 'updated', 'homepage', null, `${blocks.filter((b) => b.enabled).length} blocks`);
+  await saveSettings({ homepage });
+  await logActivity(user.id, 'updated', 'homepage', null, `${blocks.filter((b) => b.enabled).length} blocks`);
   revalidatePath('/', 'layout');
   return ok('Homepage saved.', { data: { homepage } });
 }
 
 export async function resetHomepageAction(): Promise<ActionResult> {
   const user = await requireUser('site.layout');
-  saveSettings({ homepage: DEFAULT_SETTINGS.homepage });
-  logActivity(user.id, 'reset', 'homepage', null, 'default layout');
+  await saveSettings({ homepage: DEFAULT_SETTINGS.homepage });
+  await logActivity(user.id, 'reset', 'homepage', null, 'default layout');
   revalidatePath('/', 'layout');
-  return ok('Homepage reset to the default layout.', { data: { homepage: getSettings().homepage } });
+  return ok('Homepage reset to the default layout.', { data: { homepage: (await getSettings()).homepage } });
 }

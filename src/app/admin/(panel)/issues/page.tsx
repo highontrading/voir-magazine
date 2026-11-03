@@ -10,8 +10,11 @@ export const metadata = { title: 'Magazine issues' };
 
 export default async function IssuesPage() {
   await requireUser('content.manage');
-  const issues = listIssues(false);
-  const counts = Object.fromEntries(all<{ issue_id: number; n: number }>('SELECT issue_id, COUNT(*) AS n FROM articles WHERE issue_id IS NOT NULL GROUP BY issue_id').map((r) => [r.issue_id, r.n]));
+  const [issues, countRows] = await Promise.all([
+    listIssues(false),
+    all<{ issue_id: number; n: number }>('SELECT issue_id, COUNT(*) AS n FROM articles WHERE issue_id IS NOT NULL GROUP BY issue_id'),
+  ]);
+  const counts = Object.fromEntries(countRows.map((r) => [r.issue_id, r.n]));
   return (
     <>
       <PageHeader
@@ -28,7 +31,6 @@ export default async function IssuesPage() {
           {issues.map((i, idx) => (
             <Link key={i.id} href={`/admin/issues/${i.id}`} className="adm-cover">
               <div className="adm-cover-img">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
                 {i.cover_image ? <img src={i.cover_image} alt="" loading="lazy" /> : <Icon name="issues" size={28} />}
               </div>
               <div>

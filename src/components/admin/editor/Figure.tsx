@@ -73,7 +73,6 @@ function FigureView({ node, updateAttributes, selected, deleteNode }: NodeViewPr
   const [htmlMode] = useState(() => hasMarkup(caption ?? ''));
   return (
     <NodeViewWrapper as="figure" className={`adm-figure ${selected ? 'is-selected' : ''}`} data-drag-handle="">
-      {/* eslint-disable-next-line @next/next/no-img-element */}
       <img src={src} alt={alt} draggable={false} />
       <div className="adm-figure-fields" contentEditable={false}>
         {htmlMode ? (

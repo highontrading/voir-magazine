@@ -23,7 +23,7 @@ export async function savePlanAction(_p: ActionResult | null, fd: FormData): Pro
     .filter(Boolean)
     .slice(0, 20);
   try {
-    const pid = savePlan(
+    const pid = await savePlan(
       {
         name,
         price,
@@ -33,11 +33,11 @@ export async function savePlanAction(_p: ActionResult | null, fd: FormData): Pro
         badge: str(fd, 'badge', 40),
         highlighted: bool(fd, 'highlighted') ? 1 : 0,
         active: bool(fd, 'active') ? 1 : 0,
-        position: str(fd, 'position') === '' ? (id ? getPlan(id)?.position ?? 0 : nextPosition('plans')) : int(fd, 'position'),
+        position: str(fd, 'position') === '' ? (id ? (await getPlan(id))?.position ?? 0 : await nextPosition('plans')) : int(fd, 'position'),
       },
       id,
     );
-    logActivity(user.id, id ? 'updated' : 'created', 'plan', pid, name);
+    await logActivity(user.id, id ? 'updated' : 'created', 'plan', pid, name);
     revalidatePath('/', 'layout');
     return ok(id ? 'Plan saved.' : 'Plan created.', { redirect: '/admin/subscriptions?tab=plans' });
   } catch (e) {
@@ -47,17 +47,17 @@ export async function savePlanAction(_p: ActionResult | null, fd: FormData): Pro
 
 export async function deletePlanAction(_p: ActionResult | null, fd: FormData): Promise<ActionResult> {
   const user = await requireUser('audience.manage');
-  const p = getPlan(int(fd, 'id'));
+  const p = await getPlan(int(fd, 'id'));
   if (!p) return fail('Plan not found.');
-  deletePlan(p.id);
-  logActivity(user.id, 'deleted', 'plan', null, p.name);
+  await deletePlan(p.id);
+  await logActivity(user.id, 'deleted', 'plan', null, p.name);
   revalidatePath('/', 'layout');
   return ok(`Deleted the “${p.name}” plan.`, { redirect: '/admin/subscriptions?tab=plans' });
 }
 
 export async function movePlanAction(_p: ActionResult | null, fd: FormData): Promise<ActionResult> {
   await requireUser('audience.manage');
-  if (!moveRow('plans', int(fd, 'id'), int(fd, 'dir') < 0 ? -1 : 1)) return fail('Can’t move further.');
+  if (!(await moveRow('plans', int(fd, 'id'), int(fd, 'dir') < 0 ? -1 : 1))) return fail('Can’t move further.');
   revalidatePath('/', 'layout');
   return ok();
 }
@@ -65,12 +65,12 @@ export async function movePlanAction(_p: ActionResult | null, fd: FormData): Pro
 export async function updateOrderAction(_p: ActionResult | null, fd: FormData): Promise<ActionResult> {
   const user = await requireUser('audience.manage');
   const id = int(fd, 'id');
-  const row = get<{ name: string; status: string }>('SELECT name, status FROM subscriptions WHERE id = ?', id);
+  const row = await get<{ name: string; status: string }>('SELECT name, status FROM subscriptions WHERE id = ?', id);
   if (!row) return fail('Order not found.');
   const status = str(fd, 'status') as Subscription['status'];
   if (!['pending', 'active', 'cancelled'].includes(status)) return fail('Invalid status.');
-  updateSubscription(id, status, str(fd, 'notes', 4000));
-  logActivity(user.id, status !== row.status ? `marked ${status}` : 'updated', 'subscription', id, row.name);
+  await updateSubscription(id, status, str(fd, 'notes', 4000));
+  await logActivity(user.id, status !== row.status ? `marked ${status}` : 'updated', 'subscription', id, row.name);
   revalidatePath('/admin/subscriptions');
   return ok('Subscription updated.');
 }
@@ -78,10 +78,10 @@ export async function updateOrderAction(_p: ActionResult | null, fd: FormData): 
 export async function deleteOrderAction(_p: ActionResult | null, fd: FormData): Promise<ActionResult> {
   const user = await requireUser('audience.manage');
   const id = int(fd, 'id');
-  const row = get<{ name: string }>('SELECT name FROM subscriptions WHERE id = ?', id);
+  const row = await get<{ name: string }>('SELECT name FROM subscriptions WHERE id = ?', id);
   if (!row) return fail('Order not found.');
-  deleteSubscription(id);
-  logActivity(user.id, 'deleted', 'subscription', null, row.name);
+  await deleteSubscription(id);
+  await logActivity(user.id, 'deleted', 'subscription', null, row.name);
   revalidatePath('/admin/subscriptions');
   return ok('Subscription deleted.');
 }

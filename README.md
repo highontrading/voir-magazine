@@ -4,7 +4,7 @@ A full-stack magazine website and editorial CMS. The layout and information arch
 
 - **Public site.** Homepage, six sections, articles, contributors, topics, video, podcasts, magazine issues, newsletters, subscribe and checkout, reader accounts, search, archive, masthead, contact, static pages, sitemap, RSS and a 404 page.
 - **Admin panel** at `/admin`. Everything on the site can be edited here: articles (rich-text editor), sections, tags, contributors, issues, videos, podcasts and episodes, pages, the media library, the homepage builder, navigation menus, newsletters and subscribers, plans and subscriptions, readers, the contact inbox, site settings (theme colors, announcement bar, ticker, feature toggles, SEO, footer, social links, cookie banner), users and roles, your profile and the activity log.
-- **Stack.** Next.js 16 (App Router, React Server Components and Server Actions), React 19, TypeScript, and SQLite through Node's built-in `node:sqlite`. There are no native modules and no external services. Rich text uses TipTap.
+- **Stack.** Next.js 16 (App Router, React Server Components and Server Actions), React 19 and TypeScript. Data is stored in SQLite: locally through Node's built-in `node:sqlite`, and in production through Turso (libSQL). Uploads go to the local disk or to Vercel Blob. Rich text uses TipTap.
 
 ## Quick start
 
@@ -36,16 +36,31 @@ Reset the demo data. This deletes the database; add `-- --uploads` to also delet
 npm run reset
 ```
 
+## Deploying to Vercel
+
+Vercel's file system is read-only and short-lived, so a production deploy needs two managed services. Both are in the Vercel Marketplace and have free tiers:
+
+1. **Database: Turso (hosted, SQLite-compatible).** In the Vercel project, open **Storage**, then **Create / Connect Database**, choose **Turso**, and connect it to the project. This adds `TURSO_DATABASE_URL` and `TURSO_AUTH_TOKEN`. Or, with the Turso CLI: `turso db create voirtales`, then `turso db show voirtales --url` and `turso db tokens create voirtales`, and add both values as environment variables.
+2. **Uploads: Vercel Blob.** In **Storage**, choose **Create Blob store** and connect it to the project. This adds `BLOB_READ_WRITE_TOKEN`.
+3. Optionally set `SITE_URL` (for example `https://voir-magazine.vercel.app`) so canonical links, the sitemap and RSS use your domain.
+4. **Redeploy.** On the first request the database schema is created and the demo content is seeded automatically.
+
+Without these variables the site still boots on Vercel, in **demo mode**: each server instance uses its own temporary SQLite copy in `/tmp`. Admin changes and logins are therefore **not persistent and not shared between instances**, and the admin panel shows a warning banner.
+
+Vercel limits request bodies to about 4.5 MB, so keep uploads on Vercel under that size.
+
 ## Configuration (environment variables)
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
-| `DATA_DIR` | `./data` | Where the SQLite DB and uploads live (mount a volume here in production) |
-| `DATABASE_PATH` | `$DATA_DIR/voirtales.db` | Custom DB file path |
+| `TURSO_DATABASE_URL` / `TURSO_AUTH_TOKEN` | unset | Use a remote libSQL / Turso database (required for Vercel or any serverless host). `LIBSQL_URL` / `LIBSQL_AUTH_TOKEN` also work. |
+| `BLOB_READ_WRITE_TOKEN` | unset | Store uploads in Vercel Blob instead of the local disk |
+| `DATA_DIR` | `./data` (or `/tmp/voirtales` on Vercel) | Where the local SQLite DB and uploads live (mount a volume here on a VPS or Docker) |
+| `DATABASE_PATH` | `$DATA_DIR/voirtales.db` | Custom local DB file path |
 | `SITE_URL` | `http://localhost:3000` | Absolute URL used for canonical links, sitemap and RSS |
 | `INSECURE_COOKIES` | unset | Set to `1` to allow login over plain HTTP in production builds |
 
-Uploaded media is stored in `$DATA_DIR/uploads` and served from `/media/...`. Deploy to any host with a persistent disk, such as a VPS, Docker, Railway, Render or Fly.io. Serverless hosts with read-only file systems, such as Vercel, need a different storage layer.
+Locally (and on a VPS, Docker, Railway, Render or Fly.io with a persistent disk) no services are needed. The database is a SQLite file read through Node's built-in `node:sqlite`, and uploads are stored in `$DATA_DIR/uploads` and served from `/media/...`.
 
 ## Roles
 

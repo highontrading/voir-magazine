@@ -2,7 +2,8 @@ import 'server-only';
 import crypto from 'node:crypto';
 import { cookies, headers } from 'next/headers';
 import { redirect } from 'next/navigation';
-import { all, get, run, nowIso } from './db';
+import { cache } from 'react';
+import { all, batch, get, run, nowIso } from './db';
 import type { Reader, Role, User } from './types';
 
 const ADMIN_COOKIE = 'vt_admin';
@@ -102,7 +103,7 @@ export async function loginLocked(kind: 'admin' | 'reader', email: string): Prom
 async function createSession(kind: 'admin' | 'reader', subjectId: number) {
   const id = crypto.randomBytes(32).toString('hex');
   const expires = new Date(Date.now() + SESSION_DAYS * 864e5);
-  run('INSERT INTO sessions (id, kind, subject_id, expires_at) VALUES (?, ?, ?, ?)', id, kind, subjectId, expires.toISOString());
+  await run('INSERT INTO sessions (id, kind, subject_id, expires_at) VALUES (?, ?, ?, ?)', id, kind, subjectId, expires.toISOString());
   const jar = await cookies();
   jar.set(kind === 'admin' ? ADMIN_COOKIE : READER_COOKIE, id, {
     httpOnly: true,
@@ -116,12 +117,12 @@ async function createSession(kind: 'admin' | 'reader', subjectId: number) {
 /**
  * Ends every session of a subject (call after a password change or reset). If the current
  * request was signed in with one of those sessions, a fresh session is issued so the person
- * making a self-service change stays signed in. The sessions are deleted synchronously, before
- * this function first awaits.
+ * making a self-service change stays signed in. Await it: the sessions are deleted before the
+ * returned promise resolves.
  */
 export async function revokeSessions(kind: 'admin' | 'reader', subjectId: number): Promise<void> {
-  const ids = all<{ id: string }>('SELECT id FROM sessions WHERE kind = ? AND subject_id = ?', kind, subjectId).map((r) => r.id);
-  run('DELETE FROM sessions WHERE kind = ? AND subject_id = ?', kind, subjectId);
+  const ids = (await all<{ id: string }>('SELECT id FROM sessions WHERE kind = ? AND subject_id = ?', kind, subjectId)).map((r) => r.id);
+  await run('DELETE FROM sessions WHERE kind = ? AND subject_id = ?', kind, subjectId);
   let current: string | undefined;
   try {
     current = (await cookies()).get(kind === 'admin' ? ADMIN_COOKIE : READER_COOKIE)?.value;
@@ -140,7 +141,7 @@ async function readSession(kind: 'admin' | 'reader'): Promise<number | null> {
   const jar = await cookies();
   const id = jar.get(kind === 'admin' ? ADMIN_COOKIE : READER_COOKIE)?.value;
   if (!id) return null;
-  const s = get<{ subject_id: number; expires_at: string }>(
+  const s = await get<{ subject_id: number; expires_at: string }>(
     'SELECT subject_id, expires_at FROM sessions WHERE id = ? AND kind = ?',
     id,
     kind,
@@ -153,7 +154,7 @@ async function destroySession(kind: 'admin' | 'reader') {
   const jar = await cookies();
   const name = kind === 'admin' ? ADMIN_COOKIE : READER_COOKIE;
   const id = jar.get(name)?.value;
-  if (id) run('DELETE FROM sessions WHERE id = ?', id);
+  if (id) await run('DELETE FROM sessions WHERE id = ?', id);
   jar.delete(name);
 }
 
@@ -164,7 +165,7 @@ const USER_COLS = 'id, name, email, role, avatar, active, last_login, created_at
 export async function loginAdmin(email: string, password: string): Promise<User | null> {
   const keys = await throttleKeys('admin', email);
   if (isLocked(keys)) return null;
-  const row = get<User & { password_hash: string }>(
+  const row = await get<User & { password_hash: string }>(
     `SELECT ${USER_COLS}, password_hash FROM users WHERE email = ? AND active = 1`,
     email.trim(),
   );
@@ -174,8 +175,10 @@ export async function loginAdmin(email: string, password: string): Promise<User 
     return null;
   }
   clearFailures(keys);
-  run('UPDATE users SET last_login = ? WHERE id = ?', nowIso(), row.id);
-  run("DELETE FROM sessions WHERE expires_at < ?", nowIso());
+  await batch([
+    { sql: 'UPDATE users SET last_login = ? WHERE id = ?', args: [nowIso(), row.id] },
+    { sql: 'DELETE FROM sessions WHERE expires_at < ?', args: [nowIso()] },
+  ]);
   await createSession('admin', row.id);
   const { password_hash: _ph, ...user } = row;
   return user;
@@ -185,11 +188,12 @@ export async function logoutAdmin() {
   await destroySession('admin');
 }
 
-export async function currentUser(): Promise<User | null> {
+/** Cached per request, so layouts, pages and components share one session lookup. */
+export const currentUser = cache(async (): Promise<User | null> => {
   const id = await readSession('admin');
   if (!id) return null;
-  return get<User>(`SELECT ${USER_COLS} FROM users WHERE id = ? AND active = 1`, id) ?? null;
-}
+  return (await get<User>(`SELECT ${USER_COLS} FROM users WHERE id = ? AND active = 1`, id)) ?? null;
+});
 
 /** Use at the top of every admin page / action. Redirects to login when signed out. */
 export async function requireUser(perm?: Permission): Promise<User> {
@@ -222,17 +226,17 @@ export function can(user: Pick<User, 'role'> | null | undefined, perm: Permissio
 /* ---------------- readers (public accounts) ---------------- */
 
 export async function registerReader(name: string, email: string, password: string): Promise<Reader | { error: string }> {
-  const exists = get<{ id: number }>('SELECT id FROM readers WHERE email = ?', email.trim());
+  const exists = await get<{ id: number }>('SELECT id FROM readers WHERE email = ?', email.trim());
   if (exists) return { error: 'An account with this email already exists.' };
-  const { lastId } = run('INSERT INTO readers (name, email, password_hash) VALUES (?, ?, ?)', name.trim(), email.trim(), hashPassword(password));
+  const { lastId } = await run('INSERT INTO readers (name, email, password_hash) VALUES (?, ?, ?)', name.trim(), email.trim(), hashPassword(password));
   await createSession('reader', lastId);
-  return get<Reader>('SELECT id, name, email, active, created_at FROM readers WHERE id = ?', lastId)!;
+  return (await get<Reader>('SELECT id, name, email, active, created_at FROM readers WHERE id = ?', lastId))!;
 }
 
 export async function loginReader(email: string, password: string): Promise<Reader | null> {
   const keys = await throttleKeys('reader', email);
   if (isLocked(keys)) return null;
-  const row = get<Reader & { password_hash: string }>(
+  const row = await get<Reader & { password_hash: string }>(
     'SELECT id, name, email, active, created_at, password_hash FROM readers WHERE email = ? AND active = 1',
     email.trim(),
   );
@@ -251,8 +255,9 @@ export async function logoutReader() {
   await destroySession('reader');
 }
 
-export async function currentReader(): Promise<Reader | null> {
+/** Cached per request, so every component asking for the signed-in reader shares one lookup. */
+export const currentReader = cache(async (): Promise<Reader | null> => {
   const id = await readSession('reader');
   if (!id) return null;
-  return get<Reader>('SELECT id, name, email, active, created_at FROM readers WHERE id = ? AND active = 1', id) ?? null;
-}
+  return (await get<Reader>('SELECT id, name, email, active, created_at FROM readers WHERE id = ? AND active = 1', id)) ?? null;
+});

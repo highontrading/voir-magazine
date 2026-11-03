@@ -12,7 +12,7 @@ export const metadata = { title: 'Edit plan' };
 export default async function PlanEdit({ params }: { params: Promise<{ id: string }> }) {
   await requireUser('audience.manage');
   const { id } = await params;
-  const p = id === 'new' ? null : getPlan(Number(id));
+  const p = id === 'new' ? null : await getPlan(Number(id));
   if (id !== 'new' && !p) notFound();
   let features: string[] = [];
   try {

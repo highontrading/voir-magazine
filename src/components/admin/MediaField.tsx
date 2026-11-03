@@ -62,7 +62,7 @@ export function MediaField({ name, label, defaultValue = '', value, onChange, ki
         onDragOver={(e) => e.preventDefault()}
         onDrop={(e) => {
           e.preventDefault();
-          onFile(e.dataTransfer.files[0]);
+          void onFile(e.dataTransfer.files[0]);
         }}
       >
         {url ? (
@@ -71,7 +71,6 @@ export function MediaField({ name, label, defaultValue = '', value, onChange, ki
           ) : kind === 'audio' ? (
             <audio src={url} controls preload="none" />
           ) : (
-            // eslint-disable-next-line @next/next/no-img-element
             <img src={url} alt="" />
           )
         ) : (
