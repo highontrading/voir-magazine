@@ -364,13 +364,23 @@ export function saveArticle(input: ArticleInput, id?: number, userId?: number): 
 }
 
 export function setArticleStatus(ids: number[], status: ArticleStatus) {
+  const now = nowIso();
   for (const id of ids) {
+    // "published" means live now: a missing or future date is moved to the present.
+    // "scheduled" keeps an existing date (or gets one if missing).
     run(
-      `UPDATE articles SET status = ?, published_at = CASE WHEN ? IN ('published','scheduled') AND published_at IS NULL THEN ? ELSE published_at END, updated_at = ? WHERE id = ?`,
+      `UPDATE articles SET status = ?, published_at = CASE
+         WHEN ? = 'published' AND (published_at IS NULL OR published_at > ?) THEN ?
+         WHEN ? = 'scheduled' AND published_at IS NULL THEN ?
+         ELSE published_at END,
+       updated_at = ? WHERE id = ?`,
       status,
       status,
-      nowIso(),
-      nowIso(),
+      now,
+      now,
+      status,
+      now,
+      now,
       id,
     );
   }
