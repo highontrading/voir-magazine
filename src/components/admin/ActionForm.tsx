@@ -35,26 +35,30 @@ interface Props extends Omit<React.FormHTMLAttributes<HTMLFormElement>, 'action'
  * supports confirm-before-submit and keeps field values on validation errors.
  */
 export function ActionForm({ action, confirm, confirmLabel, resetOnSuccess, warnUnsaved, onResult, silent, children, ...rest }: Props) {
-  const [state, dispatch, pending] = useActionState<ActionResult | null, FormData>(action, null);
   const toast = useToast();
   const ask = useConfirm();
   const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
   const [dirty, setDirty] = useState(false);
-  const lastAt = useRef<number | undefined>(undefined);
-  useUnsavedGuard(!!warnUnsaved && dirty);
-
+  const opts = useRef({ action, onResult, silent, resetOnSuccess });
   useEffect(() => {
-    if (!state || state.at === lastAt.current) return;
-    lastAt.current = state.at;
-    if (state.message && !silent) toast(state.message, state.ok ? 'success' : 'error');
-    if (state.ok) {
+    opts.current = { action, onResult, silent, resetOnSuccess };
+  });
+  // Handle the result inside the action itself so feedback still happens when the
+  // form unmounts as a consequence of the action (e.g. deleting a table row).
+  const [state, dispatch, pending] = useActionState<ActionResult | null, FormData>(async (prev, fd) => {
+    const o = opts.current;
+    const r = await o.action(prev, fd);
+    if (r.message && !o.silent) toast(r.message, r.ok ? 'success' : 'error');
+    if (r.ok) {
       setDirty(false);
-      if (resetOnSuccess) formRef.current?.reset();
-      if (state.redirect) router.push(state.redirect);
+      if (o.resetOnSuccess) formRef.current?.reset();
+      if (r.redirect) router.push(r.redirect);
     }
-    onResult?.(state);
-  }, [state, toast, router, resetOnSuccess, onResult, silent]);
+    o.onResult?.(r);
+    return r;
+  }, null);
+  useUnsavedGuard(!!warnUnsaved && dirty);
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();

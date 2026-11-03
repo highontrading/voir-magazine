@@ -57,7 +57,7 @@ export default async function SectionsPage() {
                         <span className="adm-color-dot" style={{ background: s.color || '#ccc' }} />
                         {s.name}
                       </Link>
-                      <span className="adm-cell-sub">/section/{s.slug}</span>
+                      <span className="adm-cell-sub">/{s.slug}</span>
                     </td>
                     <td className="adm-hide-md adm-muted" style={{ maxWidth: 380 }}>
                       {s.description}
@@ -69,7 +69,7 @@ export default async function SectionsPage() {
                     </td>
                     <td className="is-actions">
                       <div className="adm-row-actions">
-                        <a className="adm-icon-btn" href={`/section/${s.slug}`} target="_blank" rel="noreferrer" title="View on site">
+                        <a className="adm-icon-btn" href={`/${s.slug}`} target="_blank" rel="noreferrer" title="View on site">
                           <Icon name="external" size={15} />
                         </a>
                         <Link className="adm-icon-btn" href={`/admin/sections/${s.id}`} title="Edit">

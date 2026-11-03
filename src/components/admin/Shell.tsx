@@ -19,7 +19,7 @@ interface ShellUser {
   avatar: string | null;
 }
 
-export function AdminShell({ groups, user, brand, children }: { groups: NavGroup[]; user: ShellUser; brand: string; canWrite?: boolean; children: React.ReactNode }) {
+export function AdminShell({ groups, user, brand, children }: { groups: NavGroup[]; user: ShellUser; brand: string; children: React.ReactNode }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const [menu, setMenu] = useState(false);

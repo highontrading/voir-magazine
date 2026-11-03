@@ -5,6 +5,8 @@ import { requireUser } from '@/lib/auth';
 import { deleteSection, getSectionById, saveSection } from '@/lib/data/taxonomy';
 import { logActivity } from '@/lib/data/site';
 import { moveRow, nextPosition } from '@/lib/data/admin';
+import { topLevelSlugClash } from '@/lib/admin/reserved';
+import { slugify } from '@/lib/utils';
 import { bool, dbError, fail, int, ok, str, type ActionResult } from '@/lib/admin/form';
 
 export async function saveSectionAction(_p: ActionResult | null, fd: FormData): Promise<ActionResult> {
@@ -14,13 +16,16 @@ export async function saveSectionAction(_p: ActionResult | null, fd: FormData): 
   const color = str(fd, 'color', 7);
   const errors: Record<string, string> = {};
   if (!name) errors.name = 'Name is required.';
+  const slug = slugify(str(fd, 'slug', 90) || name);
+  const clash = name ? topLevelSlugClash(slug, 'section', id) : null;
+  if (clash) errors.slug = clash;
   if (color && !/^#[0-9a-f]{6}$/i.test(color)) errors.color = 'Use a hex colour like #c8102e.';
   if (Object.keys(errors).length) return fail(Object.values(errors)[0]!, errors);
   try {
     const saved = saveSection(
       {
         name,
-        slug: str(fd, 'slug', 90),
+        slug,
         description: str(fd, 'description', 1000),
         color,
         position: fd.get('position') === '' || fd.get('position') === null ? (id ? getSectionById(id)?.position ?? 0 : nextPosition('sections')) : int(fd, 'position'),

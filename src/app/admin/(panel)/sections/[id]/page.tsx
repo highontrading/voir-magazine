@@ -23,7 +23,7 @@ export default async function SectionEdit({ params }: { params: Promise<{ id: st
         actions={
           s && (
             <>
-              <a className="adm-btn" href={`/section/${s.slug}`} target="_blank" rel="noreferrer">
+              <a className="adm-btn" href={`/${s.slug}`} target="_blank" rel="noreferrer">
                 <Icon name="external" size={14} /> View
               </a>
               <ActionButton action={deleteSectionAction} fields={{ id: s.id }} className="adm-btn" danger confirm={`Delete the “${s.name}” section?`}>
@@ -37,7 +37,7 @@ export default async function SectionEdit({ params }: { params: Promise<{ id: st
         <input type="hidden" name="id" value={s?.id ?? ''} />
         <div className="adm-grid-2-1">
           <div className="adm-card adm-card-body adm-stack">
-            <TitleSlugFields titleName="name" titleLabel="Name" defaultTitle={s?.name} defaultSlug={s?.slug} prefix="/section/" />
+            <TitleSlugFields titleName="name" titleLabel="Name" defaultTitle={s?.name} defaultSlug={s?.slug} prefix="/" />
             <label className="adm-field">
               <span className="adm-label">Description</span>
               <textarea className="adm-input" name="description" rows={3} defaultValue={s?.description} />

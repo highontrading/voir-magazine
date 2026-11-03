@@ -21,7 +21,6 @@ export default async function PanelLayout({ children }: { children: React.ReactN
         groups={groups}
         user={{ id: user.id, name: user.name, email: user.email, role: user.role, avatar: user.avatar }}
         brand={settings.logoText || 'VOIRTALES'}
-        canWrite
       >
         {children}
       </AdminShell>

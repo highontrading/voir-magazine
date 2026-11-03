@@ -757,3 +757,28 @@
   .adm .adm-login { grid-template-columns: minmax(0, 1fr); }
   .adm .adm-login-art { display: none; }
 }
+
+/* order "Manage" popover */
+.adm .adm-order-details { position: relative; display: inline-block; text-align: left; }
+.adm .adm-order-details > summary { list-style: none; cursor: pointer; }
+.adm .adm-order-details > summary::-webkit-details-marker { display: none; }
+.adm .adm-order-details[open] > summary { background: var(--adm-hover); }
+.adm .adm-order-pop { position: absolute; right: 0; top: calc(100% + 6px); z-index: 20; width: 280px; padding: 14px; background: #fff; border: 1px solid var(--adm-border); border-radius: 10px; box-shadow: var(--adm-shadow-lg); display: flex; flex-direction: column; gap: 10px; animation: adm-pop 0.12s ease-out; white-space: normal; }
+
+/* keep absolutely-positioned helpers (e.g. .sr-only) inside scroll containers */
+.adm .adm-table-wrap, .adm .adm-tabs { position: relative; }
+.adm .sr-only { top: 0; left: 0; }
+/* homepage blocks: let the action cluster wrap under the title on narrow screens */
+.adm .adm-block-head { flex-wrap: wrap; }
+.adm .adm-block-title { min-width: 140px; }
+.adm .adm-block-actions { margin-left: auto; }
+/* hide broken external thumbnails gracefully */
+.adm .adm-thumb img, .adm .adm-cover-img img { color: transparent; }
+
+/* route loading skeleton */
+.adm .adm-loading { display: flex; flex-direction: column; gap: 12px; animation: adm-fade 0.3s 0.15s both; }
+.adm .adm-skel { border-radius: 8px; background: linear-gradient(90deg, #ececef 0%, #f6f6f8 50%, #ececef 100%); background-size: 200% 100%; animation: adm-shimmer 1.2s linear infinite; }
+.adm .adm-skel-title { width: 260px; height: 28px; }
+.adm .adm-skel-sub { width: 380px; max-width: 80%; height: 14px; margin-bottom: 12px; }
+.adm .adm-skel-block { height: 360px; border-radius: var(--adm-radius); }
+@keyframes adm-shimmer { to { background-position: -200% 0; } }

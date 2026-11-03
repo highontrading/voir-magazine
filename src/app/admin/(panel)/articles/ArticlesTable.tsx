@@ -140,7 +140,7 @@ export function ArticlesTable({ rows, canPublish }: { rows: ArticleRowLite[]; ca
                   {r.status === 'published' || r.status === 'scheduled' ? (
                     <span title={r.published_at ?? ''}>{formatDate(r.published_at, 'short')}</span>
                   ) : (
-                    <span className="adm-muted" title={r.updated_at}>
+                    <span className="adm-muted" title={r.updated_at} suppressHydrationWarning>
                       Edited {timeAgo(r.updated_at)}
                     </span>
                   )}

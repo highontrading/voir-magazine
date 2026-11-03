@@ -17,13 +17,14 @@ interface Props {
   hint?: string;
   aspect?: 'wide' | 'square' | 'portrait';
   compact?: boolean;
+  hidePreview?: boolean;
 }
 
 /**
  * URL field with preview + "Upload" + "Library" (MediaPicker). Works controlled (value/onChange)
  * or uncontrolled inside a form (name/defaultValue).
  */
-export function MediaField({ name, label, defaultValue = '', value, onChange, kind = 'image', hint, aspect = 'wide', compact }: Props) {
+export function MediaField({ name, label, defaultValue = '', value, onChange, kind = 'image', hint, aspect = 'wide', compact, hidePreview }: Props) {
   const [inner, setInner] = useState(defaultValue);
   const url = value ?? inner;
   const [open, setOpen] = useState(false);
@@ -56,7 +57,7 @@ export function MediaField({ name, label, defaultValue = '', value, onChange, ki
   return (
     <div className={`adm-mediafield ${compact ? 'is-compact' : ''}`}>
       {label && <span className="adm-label">{label}</span>}
-      <div
+      {!hidePreview && <div
         className={`adm-mediafield-preview is-${aspect} ${url ? '' : 'is-empty'}`}
         onDragOver={(e) => e.preventDefault()}
         onDrop={(e) => {
@@ -80,13 +81,13 @@ export function MediaField({ name, label, defaultValue = '', value, onChange, ki
           </button>
         )}
         {busy && <div className="adm-mediafield-busy"><span className="adm-spinner" /></div>}
-      </div>
+      </div>}
       <div className="adm-mediafield-row">
         <input className="adm-input" type="text" name={name} value={url} placeholder="https://… or /media/…" onChange={(e) => set(e.target.value)} />
       </div>
       <div className="adm-mediafield-actions">
         <button type="button" className="adm-btn adm-btn-sm" onClick={() => fileRef.current?.click()} disabled={busy}>
-          <Icon name="upload" size={14} /> Upload
+          {busy ? <span className="adm-spinner" /> : <Icon name="upload" size={14} />} {busy ? 'Uploading…' : 'Upload'}
         </button>
         <button type="button" className="adm-btn adm-btn-sm" onClick={() => setOpen(true)}>
           <Icon name="media" size={14} /> Library

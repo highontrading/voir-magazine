@@ -27,10 +27,13 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
           <div className="adm-login-hint">
             <strong>Demo access</strong>
             <span>
-              Admin: <code>admin@voirtales.com</code> / <code>admin123</code>
+              Admin · <code>admin@voirtales.com</code> / <code>admin123</code>
             </span>
             <span>
-              Editor: <code>editor@voirtales.com</code> / <code>editor123</code> · Writer: <code>writer@voirtales.com</code> / <code>writer123</code>
+              Editor · <code>editor@voirtales.com</code> / <code>editor123</code>
+            </span>
+            <span>
+              Writer · <code>writer@voirtales.com</code> / <code>writer123</code>
             </span>
           </div>
           <a href="/" className="adm-login-back">

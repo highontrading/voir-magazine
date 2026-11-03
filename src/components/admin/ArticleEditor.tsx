@@ -162,7 +162,7 @@ export function ArticleEditor({ initial, meta, sections, authors, issues, tagSug
           ← Articles
         </Link>
         <span className={`adm-pill is-${savedStatus}`}>{STATUS_LABEL[savedStatus]}</span>
-        <span className="adm-editor-saved">
+        <span className="adm-editor-saved" suppressHydrationWarning>
           {pending ? (
             <>
               <span className="adm-spinner" /> Saving…
@@ -307,7 +307,7 @@ export function ArticleEditor({ initial, meta, sections, authors, issues, tagSug
                       <dt>Views</dt>
                       <dd>{meta.views.toLocaleString()}</dd>
                       <dt>Created</dt>
-                      <dd>{meta.created_at ? timeAgo(meta.created_at) : '—'}</dd>
+                      <dd suppressHydrationWarning>{meta.created_at ? timeAgo(meta.created_at) : '—'}</dd>
                     </>
                   )}
                 </dl>
